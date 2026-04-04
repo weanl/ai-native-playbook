@@ -1,0 +1,158 @@
+<mxfile host="app.diagrams.net" modified="2024-01-01T00:00:00.000Z" agent="Mozilla/5.0" version="22.1.0" etag="v2" type="device">
+  <diagram name="AI Native Workflow (Full Details)" id="ai-native-full">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="2000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- 输入 -->
+        <mxCell id="input" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;📥 输入&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;&lt;div&gt;• 需求背景（iwiki 需求分析）&lt;/div&gt;&lt;div&gt;• 方案设计（技术方案 / 架构图）&lt;/div&gt;&lt;div&gt;• 项目代码库 + OpenSpec 规范库&lt;/div&gt;&lt;div&gt;• 团队编码规范&lt;/div&gt;&lt;div&gt;• 知识库（业务专有名词解释 等）&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;verticalAlign=top;align=left;spacingLeft=10;fontSize=13;" parent="1" vertex="1">
+          <mxGeometry x="360" y="40" width="450" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Step 0: 需求预检 (新增) -->
+        <mxCell id="step0" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;Step 0: 需求预检&lt;/b&gt; (Human)&lt;hr size=&quot;1&quot;/&gt;&lt;div&gt;• 明确需求边界与验收标准&lt;/div&gt;&lt;div&gt;• 评估 AI 编码适用性&lt;/div&gt;&lt;div&gt;• 确定任务级别 (Level 1/2/3)&lt;/div&gt;&lt;div&gt;&lt;i style=&quot;color: #666666;&quot;&gt;目标：确保输入清晰，避免方向性错误&lt;/i&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;align=left;spacingLeft=10;fontSize=13;" parent="1" vertex="1">
+          <mxGeometry x="360" y="180" width="450" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Step 1: 规范契约生成 -->
+        <mxCell id="step1" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;Step 1: 规范契约生成&lt;/b&gt; (/opsx:propose)&lt;hr size=&quot;1&quot;/&gt;&lt;div&gt;研发在 CodeBuddy 中执行 /opsx:propose 指令，AI 引导式交互，自动生成三份核心契约文件：&lt;/div&gt;&lt;div&gt;&lt;b&gt;openspec/changes/任务名称/&lt;/b&gt;&lt;/div&gt;&lt;div&gt;📄 proposal.md → 变更建议书（为什么做 + 做什么）&lt;/div&gt;&lt;div&gt;📐 design.md → 详细设计图（怎么做）&lt;/div&gt;&lt;div&gt;☑️ tasks.md → 施工任务清单（AI 执行清单）&lt;/div&gt;&lt;div&gt;📜 specs → 规范变更增量&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;✅ 解决痛点：人工协作无标准 → AI 引导式交互，工程师无需成为提示词专家，标准化输出质量可控&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#0000CC&quot;&gt;⚠️ 说明：tasks.md 建议控制在 15 项以内，避免 AI 因上下文过长产生幻觉。&lt;/font&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;align=left;spacingLeft=10;fontSize=13;" parent="1" vertex="1">
+          <mxGeometry x="360" y="310" width="450" height="220" as="geometry" />
+        </mxCell>
+
+        <!-- Step 2: 人工评审契约 -->
+        <mxCell id="step2" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;Step 2: 人工评审契约&lt;/b&gt; (质量门禁 1 - Human)&lt;hr size=&quot;1&quot;/&gt;&lt;div&gt;技术负责人 / 研发同步评审三份契约文件：&lt;/div&gt;&lt;div&gt;✓ proposal.md：需求理解是否准确、范围是否合理&lt;/div&gt;&lt;div&gt;✓ design.md：技术方案是否可行、是否符合架构规范&lt;/div&gt;&lt;div&gt;✓ tasks.md：任务拆解粒度是否合理、是否有遗漏&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;➡️ 评审通过 → 进入编码 | 评审不通过 → 回到 Step 1 修改&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#d79b00&quot;&gt;&lt;b&gt;特殊说明：&lt;/b&gt;&lt;/font&gt;如果变更涉及前端页面，我们在 Step 2 和 Step 4 之间加了一个原型审查环节&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;align=left;spacingLeft=10;fontSize=13;" parent="1" vertex="1">
+          <mxGeometry x="360" y="560" width="450" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- Step 3: AI 自主编码 -->
+        <mxCell id="step3" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;Step 3: AI 自主编码&lt;/b&gt; (/opsx:apply)&lt;hr size=&quot;1&quot;/&gt;&lt;div&gt;研发在 CodeBuddy 中执行 /opsx:apply 指令，AI 严格按照契约文件自主执行：&lt;/div&gt;&lt;div&gt;① 读取 proposal.md → 理解变更意图&lt;/div&gt;&lt;div&gt;② 读取 design.md → 理解技术方案&lt;/div&gt;&lt;div&gt;③ 读取 tasks.md → 获取任务清单&lt;/div&gt;&lt;div&gt;④ 读取 openspec/specs → 获取项目整体记忆&lt;/div&gt;&lt;div&gt;⑤ 按清单逐项执行 → 跨文件编码实现&lt;/div&gt;&lt;div&gt;⑥ 自动补充单元测试&lt;/div&gt;&lt;div&gt;⑦ 修复编译错误 / Lint 告警&lt;/div&gt;&lt;div&gt;⑧ 更新 tasks.md 标记完成进度&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;✅ 解决痛点：流程断点 → 契约文件统一信息源，AI 直接读取，无需人工翻译和搬运&lt;/div&gt;&lt;div&gt;✅ 解决痛点：上下文丢失 → openspec/specs/ 提供项目整体记忆，AI 拥有全局视野&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;align=left;spacingLeft=10;fontSize=13;" parent="1" vertex="1">
+          <mxGeometry x="360" y="760" width="450" height="260" as="geometry" />
+        </mxCell>
+
+        <!-- Step 4: 自动运行编译和测试 -->
+        <mxCell id="step4" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;Step 4: 自动运行编译和测试&lt;/b&gt; (Gatekeeper)&lt;hr size=&quot;1&quot;/&gt;&lt;div&gt;AI 编码完成后，自动触发质量检查：&lt;/div&gt;&lt;div&gt;✓ Lint 检查（ESLint / golangci-lint）&lt;/div&gt;&lt;div&gt;✓ Build 编译验证&lt;/div&gt;&lt;div&gt;✓ Unit Test 单元测试执行&lt;/div&gt;&lt;div&gt;✓ 安全合规扫描&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;➡️ 检查通过 → 进入人工审查 | 检查失败 → AI 自动修复后重新检查&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#990000&quot;&gt;⚠️ 风控：自动修复超过 3 次，触发人工接管&lt;/font&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;align=left;spacingLeft=10;fontSize=13;" parent="1" vertex="1">
+          <mxGeometry x="360" y="1050" width="450" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- Step 5: 人工代码审查 -->
+        <mxCell id="step5" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;Step 5: 人工代码审查&lt;/b&gt; (质量门禁 2 - Human)&lt;hr size=&quot;1&quot;/&gt;&lt;div&gt;技术负责人 / 同行工程师进行 Code Review：&lt;/div&gt;&lt;div&gt;✓ 关键业务逻辑审查&lt;/div&gt;&lt;div&gt;✓ 安全 / 性能审核&lt;/div&gt;&lt;div&gt;✓ 代码是否与 proposal.md / design.md 一致&lt;/div&gt;&lt;div&gt;✓ PR 合并审批&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;➡️ 审查通过 → 合并代码，进入规范归档 | 审查不通过 → AI 按 Review 意见修改后重新提交&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;align=left;spacingLeft=10;fontSize=13;" parent="1" vertex="1">
+          <mxGeometry x="360" y="1250" width="450" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- Step 6: 规范归档 -->
+        <mxCell id="step6" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;Step 6: 规范归档&lt;/b&gt; (/opsx:archive)&lt;hr size=&quot;1&quot;/&gt;&lt;div&gt;代码合并后，执行 /opsx:archive 指令：&lt;/div&gt;&lt;div&gt;① changes/[任务名称]/specs/ 中的增量规范 → 合并到 openspec/specs/（项目整体记忆）&lt;/div&gt;&lt;div&gt;② changes/[任务名称]/ 整个工作区归档&lt;/div&gt;&lt;div&gt;③ 项目的活文档自动更新&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;✅ 解决痛点：文档脱节 → 规范即代码，OpenSpec 契约与代码同库管理、同步更新，永不脱节&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;align=left;spacingLeft=10;fontSize=13;" parent="1" vertex="1">
+          <mxGeometry x="360" y="1440" width="450" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- 输出产物 -->
+        <mxCell id="output" value="&lt;b style=&quot;font-size: 16px;&quot;&gt;📤 输出产物&lt;/b&gt;&lt;hr size=&quot;1&quot;/&gt;&lt;div&gt;① 实现代码（多文件变更）&lt;/div&gt;&lt;div&gt;② 单元测试&lt;/div&gt;&lt;div&gt;③ 代码审查记录&lt;/div&gt;&lt;div&gt;④ OpenSpec 变更集（归档后的规范更新）&lt;/div&gt;&lt;div&gt;⑤ 变更说明 / 发布说明草稿&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;align=left;spacingLeft=10;fontSize=13;" parent="1" vertex="1">
+          <mxGeometry x="360" y="1610" width="450" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        
+        <!-- Input -> Step 0 -->
+        <mxCell id="e_in_0" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2;" edge="1" parent="1" source="input" target="step0">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Step 0 -> Step 1 -->
+        <mxCell id="e_0_1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2;" edge="1" parent="1" source="step0" target="step1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Step 1 -> Step 2 -->
+        <mxCell id="e_1_2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2;" edge="1" parent="1" source="step1" target="step2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Step 2 -> Step 3 (评审通过) -->
+        <mxCell id="e_2_3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2;" edge="1" parent="1" source="step2" target="step3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_2_3" value="评审通过" style="edgeLabel;html=1;fontSize=12;align=center;verticalAlign=middle;" parent="1" vertex="1" connectable="0" for="e_2_3">
+          <mxGeometry x="-0.2" y="2" relative="1" as="geometry">
+            <mxPoint x="10" y="-9" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step 2 -> Step 1 (回退) -->
+        <mxCell id="e_2_1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;exitX=1;exitY=0.5;entryX=1;entryY=0.5;strokeColor=#990000;dashed=1;strokeWidth=2;" edge="1" parent="1" source="step2" target="step1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="850" y="645" />
+              <mxPoint x="850" y="420" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl_2_1" value="评审不通过" style="edgeLabel;html=1;fontSize=12;align=center;fontColor=#990000;" parent="1" vertex="1" connectable="0" for="e_2_1">
+          <mxGeometry x="-0.2" y="2" relative="1" as="geometry">
+            <mxPoint x="15" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step 3 -> Step 4 -->
+        <mxCell id="e_3_4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2;" edge="1" parent="1" source="step3" target="step4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Step 4 -> Step 5 (检查通过) -->
+        <mxCell id="e_4_5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2;" edge="1" parent="1" source="step4" target="step5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_4_5" value="检查通过" style="edgeLabel;html=1;fontSize=12;align=center;verticalAlign=middle;" parent="1" vertex="1" connectable="0" for="e_4_5">
+          <mxGeometry x="-0.2" y="2" relative="1" as="geometry">
+            <mxPoint x="10" y="-9" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step 4 -> Step 3 (回退) -->
+        <mxCell id="e_4_3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;exitX=0;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#990000;dashed=1;strokeWidth=2;" edge="1" parent="1" source="step4" target="step3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="340" y="1135" />
+              <mxPoint x="340" y="890" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl_4_3" value="检查失败，AI自动修复" style="edgeLabel;html=1;fontSize=12;align=center;fontColor=#990000;" parent="1" vertex="1" connectable="0" for="e_4_3">
+          <mxGeometry x="-0.2" y="2" relative="1" as="geometry">
+            <mxPoint x="-20" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step 5 -> Step 6 (审查通过) -->
+        <mxCell id="e_5_6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2;" edge="1" parent="1" source="step5" target="step6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_5_6" value="审查通过" style="edgeLabel;html=1;fontSize=12;align=center;verticalAlign=middle;" parent="1" vertex="1" connectable="0" for="e_5_6">
+          <mxGeometry x="-0.2" y="2" relative="1" as="geometry">
+            <mxPoint x="10" y="-9" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step 5 -> Step 3 (回退) -->
+        <mxCell id="e_5_3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;exitX=1;exitY=0.5;entryX=1;entryY=0.75;strokeColor=#990000;dashed=1;strokeWidth=2;" edge="1" parent="1" source="step5" target="step3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="850" y="1330" />
+              <mxPoint x="850" y="955" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl_5_3" value="审查不通过" style="edgeLabel;html=1;fontSize=12;align=center;fontColor=#990000;" parent="1" vertex="1" connectable="0" for="e_5_3">
+          <mxGeometry x="-0.2" y="2" relative="1" as="geometry">
+            <mxPoint x="15" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Step 6 -> Output -->
+        <mxCell id="e_6_out" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeWidth=2;" edge="1" parent="1" source="step6" target="output">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
