@@ -70,10 +70,12 @@ jobs:
       - name: Run tests
         run: |
           if [ -d "tests" ]; then
+            set +e  # Temporarily disable errexit
             pytest tests/ -v
             exit_code=$?
+            set -e  # Re-enable errexit
             # exit code 5 = no tests collected (acceptable for placeholder stage)
-            if [ $exit_code -ne 5 ] && [ $exit_code -ne 0 ]; then
+            if [ $exit_code -ne 0 ] && [ $exit_code -ne 5 ]; then
               exit $exit_code
             fi
           fi
