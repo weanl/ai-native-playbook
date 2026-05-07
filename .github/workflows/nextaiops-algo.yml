@@ -1,15 +1,22 @@
-name: CI
+name: NextAIOpsAlgoApp CI
 
 on:
   push:
+    paths:
+      - 'next-aiops-system/nextaiops-algo-app/**'
     branches: [main, feat/pr-*]
   pull_request:
+    paths:
+      - 'next-aiops-system/nextaiops-algo-app/**'
     branches: [main]
 
 jobs:
   lint:
     name: Lint (ruff + mypy)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: next-aiops-system/nextaiops-algo-app
 
     steps:
       - name: Checkout code
@@ -39,6 +46,9 @@ jobs:
   test:
     name: Test (pytest)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: next-aiops-system/nextaiops-algo-app
 
     steps:
       - name: Checkout code
