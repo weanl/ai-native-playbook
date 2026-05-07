@@ -1,15 +1,22 @@
-name: CI
+name: NextAIOpsAlgoApp CI
 
 on:
   push:
+    paths:
+      - 'next-aiops-system/nextaiops-algo-app/**'
     branches: [main, feat/pr-*]
   pull_request:
+    paths:
+      - 'next-aiops-system/nextaiops-algo-app/**'
     branches: [main]
 
 jobs:
   lint:
     name: Lint (ruff + mypy)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: next-aiops-system/nextaiops-algo-app
 
     steps:
       - name: Checkout code
@@ -39,6 +46,9 @@ jobs:
   test:
     name: Test (pytest)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: next-aiops-system/nextaiops-algo-app
 
     steps:
       - name: Checkout code
@@ -58,4 +68,14 @@ jobs:
         run: uv pip install --system pytest
 
       - name: Run tests
-        run: if [ -d "tests" ]; then pytest tests/ -v; fi
+        run: |
+          if [ -d "tests" ]; then
+            set +e  # Temporarily disable errexit
+            pytest tests/ -v
+            exit_code=$?
+            set -e  # Re-enable errexit
+            # exit code 5 = no tests collected (acceptable for placeholder stage)
+            if [ $exit_code -ne 0 ] && [ $exit_code -ne 5 ]; then
+              exit $exit_code
+            fi
+          fi

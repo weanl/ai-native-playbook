@@ -27,7 +27,8 @@
 - `Makefile`
 - `Dockerfile` `docker-compose.yml`
 - `.gitignore`
-- `.github/workflows/ci.yml`（先空跑，仅 lint + 测试占位）
+- `.github/workflows/nextaiops-algo.yml`（仓库根目录，monorepo CI 结构）
+> **架构调整说明**：采用 monorepo 结构，CI workflow 放置在仓库根目录（`.github/workflows/`），通过 `paths` 过滤器触发子项目 CI，支持后续新增其他子系统。
 - `src/nextaiops_algo/__init__.py`
 - `src/nextaiops_algo/{core,algorithms,pipeline,viz,storage,cli,ui}/__init__.py`
 - `tests/__init__.py` `tests/{unit,integration,smoke}/__init__.py`
