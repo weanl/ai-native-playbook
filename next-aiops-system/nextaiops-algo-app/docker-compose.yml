@@ -1,0 +1,23 @@
+# NextAIOpsAlgoApp Development Environment
+# Docker Compose 配置
+
+version: "3.8"
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nextaiops-algo-dev
+    volumes:
+      - .:/app
+      - ~/.cache/uv:/root/.cache/uv  # uv 缓存持久化
+    ports:
+      - "8501:8501"  # Streamlit demo
+    environment:
+      - NEXTAIOPS_ALGO_HOME=/app/.nextaiops_algo
+      - PYTHONPATH=/app/src
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    command: bash
