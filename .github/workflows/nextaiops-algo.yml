@@ -33,7 +33,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv pip install --system ruff mypy
+        run: uv pip install --system -e ".[dev]"
 
       - name: Run ruff lint
         run: |
@@ -65,7 +65,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv pip install --system pytest
+        run: uv pip install --system -e ".[dev]"
 
       - name: Run tests
         run: |
