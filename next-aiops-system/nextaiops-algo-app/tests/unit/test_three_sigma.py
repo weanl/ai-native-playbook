@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from nextaiops_algo.algorithms.three_sigma import ThreeSigma
 from nextaiops_algo.core.table import FieldRole, Table, TableSchema

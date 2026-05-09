@@ -4,8 +4,6 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from nextaiops_algo.core.experiment import ExperimentRun, RunStatus
 from nextaiops_algo.storage.sqlite_tracking import SqliteTrackingStore
 

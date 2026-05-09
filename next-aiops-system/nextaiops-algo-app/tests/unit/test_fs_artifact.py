@@ -3,8 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from nextaiops_algo.storage.fs_artifact import FsArtifactStore
 
 
