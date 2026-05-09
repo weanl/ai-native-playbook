@@ -1,6 +1,6 @@
 """Evaluation metrics calculation for anomaly detection."""
 
-from nextaiops_algo.core.table import Table
+from nextaiops_algo.core.table import FieldRole, Table
 
 
 def evaluate(input_table: Table, output_table: Table) -> dict[str, float]:
@@ -29,6 +29,22 @@ def evaluate(input_table: Table, output_table: Table) -> dict[str, float]:
     if y_true is None:
         # No ground truth, return zeros
         return {"precision": 0.0, "recall": 0.0, "f1": 0.0}
+
+    # Align by timestamp if both tables have it (PR-4 bug fix)
+    in_ts = input_table.timestamps()
+    out_ts = output_table.timestamps()
+    if in_ts is not None and out_ts is not None:
+        # Use timestamp to align
+        y_true_aligned = input_table.df.set_index(
+            input_table.schema.columns_of(FieldRole.TIMESTAMP)[0]
+        )[input_table.schema.columns_of(FieldRole.LABEL)[0]]
+        y_pred_aligned = output_table.df.set_index(
+            output_table.schema.columns_of(FieldRole.TIMESTAMP)[0]
+        )["predicted_label"]
+        # Keep only common timestamps
+        common_ts = y_true_aligned.index.intersection(y_pred_aligned.index)
+        y_true = y_true_aligned.loc[common_ts]
+        y_pred = y_pred_aligned.loc[common_ts]
 
     # Calculate true positives, false positives, false negatives
     tp = ((y_true == 1) & (y_pred == 1)).sum()
