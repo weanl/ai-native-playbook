@@ -110,11 +110,13 @@ class ThreeSigma(AnomalyDetector):
             output_roles[f"{col}.threshold_lower"] = FieldRole.METRIC
 
         # OR-merge predicted_label across all metrics
-        combined_label = pd.Series([0] * n_rows, dtype=int)
+        # Use the same index as metrics_df to avoid index alignment issues
+        combined_label = pd.Series([0] * n_rows, index=metrics_df.index, dtype=int)
         for col_labels in per_metric_labels.values():
             combined_label = combined_label | col_labels
 
-        output_df["predicted_label"] = combined_label.values
+        # Reset index to range for output DataFrame
+        output_df["predicted_label"] = combined_label.reset_index(drop=True).values
         output_roles["predicted_label"] = FieldRole.LABEL
 
         # Create output schema and Table
