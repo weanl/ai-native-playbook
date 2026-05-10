@@ -66,51 +66,54 @@ NextAIOpsAlgoApp 是 **NextAIOpsSystem** 的「算法平台」子系统，独立
 > ⏱️ 5 分钟跑通端到端实验
 
 ```bash
-# 1. clone & 启动开发环境
+# 1. clone & 安装依赖
 git clone <repo-url> && cd nextaiops-algo-app
-make dev
+pip install -e ".[dev]"
 
 # 2. 跑一次冒烟实验（CLI）
-make smoke ALG=three_sigma
+python -m nextaiops_algo run --data tests/smoke/golden_data/metrics.csv --algo three_sigma
 
 # 3. 启动可视化看板
-make demo
+streamlit run src/nextaiops_algo/ui/app.py
 # 浏览器打开 http://localhost:8501
 # 上传 tests/smoke/golden_data/metrics.csv → 选 three_sigma → 跑 → 看图
 ```
 
-> M0 完成前以上命令的可用性以 [docs/PLAN.md](docs/PLAN.md) 验收线为准。
+> 有 `make` 时可用 `make dev` / `make smoke ALG=three_sigma` / `make demo` 等简写。
 
 ## 5. 架构总览
 
 ```text
-┌───────────────────────────────────────────────────────────┐
-│                      NextAIOpsAlgoApp                     │
-│                                                           │
-│   ┌──────┐    ┌────────────┐    ┌──────────┐             │
-│   │ CLI  │    │ Streamlit  │    │  REST    │ (M1+)       │
-│   └──┬───┘    └─────┬──────┘    └────┬─────┘             │
-│      └──────────────┴────────────────┘                    │
-│                     │                                     │
-│              ┌──────▼──────┐                              │
-│              │  pipeline/  │  编排：preprocess/run/eval   │
-│              └──┬───────┬──┘                              │
-│                 │       │                                 │
-│       ┌─────────▼─┐   ┌─▼────────┐                       │
-│       │algorithms/│   │   viz/   │                       │
-│       │  插件层    │   │ 可视化   │                       │
-│       └─────┬─────┘   └────┬─────┘                       │
-│             │              │                              │
-│             └──────┬───────┘                              │
-│                    │                                      │
-│              ┌─────▼──────┐                               │
-│              │   core/    │  契约层（Table / Algorithm）  │
-│              └─────┬──────┘                               │
-│                    │                                      │
-│              ┌─────▼──────┐                               │
-│              │  storage/  │  SQLite + FS                  │
-│              └────────────┘                               │
-└───────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    NextAIOpsAlgoApp M0                       │
+│                                                             │
+│  ┌─────────┐  ┌───────────┐  ┌───────────┐                │
+│  │  CLI    │  │ Streamlit │  │  (REST)   │  ← M1+          │
+│  └────┬────┘  └─────┬─────┘  └───────────┘                  │
+│       └──────────────┼───────────────                       │
+│                      │                                      │
+│              ┌───────▼──────────┐                            │
+│              │    pipeline/     │  编排层                     │
+│              │  preprocess      │  CSV → Table + 切分         │
+│              │  run             │  run_experiment 入口        │
+│              │  evaluate        │  precision / recall / F1   │
+│              └───┬──────────┬───┘                            │
+│                  │          │                                │
+│       ┌──────────▼──┐  ┌───▼───────────┐                   │
+│       │ algorithms/ │  │    viz/       │                   │
+│       │  REGISTRY   │  │  timeseries   │                   │
+│       │ three_sigma │  │  Plotly HTML  │                   │
+│       └──────┬──────┘  └───────────────┘                   │
+│              │                                              │
+│        ┌─────▼──────┐                                       │
+│        │   core/    │  稳定层（契约）                        │
+│        │  Table     │  Algorithm  │  Experiment             │
+│        └──────┬─────┘                                       │
+│               │                                             │
+│        ┌──────▼─────┐                                       │
+│        │  storage/  │  实现层（SQLite + FS）                │
+│        └────────────┘                                       │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 **关键设计**：
@@ -118,8 +121,9 @@ make demo
 - `core/` 是稳定层（契约），`algorithms/` 是可变层（插件），物理隔离
 - 算法 I/O 统一为 `Table`（DataFrame + Schema），平台前置 schema 校验
 - Pipeline 不感知具体算法，仅通过 REGISTRY 调用
+- CLI / UI / viz 不写业务逻辑，只调 pipeline 与查询 storage
 
-详见 [docs/architecture/M0-skeleton.md](docs/architecture/M0-skeleton.md)（M0 完成时补充）。
+详见 [docs/architecture/M0-skeleton.md](docs/architecture/M0-skeleton.md)（数据流、Table 贯穿、稳定/可变分离）。
 
 ## 6. 项目状态
 
