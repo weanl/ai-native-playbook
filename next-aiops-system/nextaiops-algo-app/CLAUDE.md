@@ -29,3 +29,53 @@
 
 ## Slash Commands
 `/new-pr <N>` 启动 PR 规划 ｜ `/impl <i>` 实现 todo 第 i 项 ｜ `/self-check` 收尾自检 ｜ `/correct <偏离点>` 纠偏
+
+## 血泪教训（PR-1~PR-5 实战总结）
+
+> 违反即停，不要自行补救。
+
+| 教训 | PR 实例 | 预防措施 |
+|------|--------|----------|
+| 分支必须先创建 | PR-5 在 main commit 后补救 | `/new-pr` 后立即 `git checkout -b feat/pr-N-slug` |
+| commit 在 main 而非分支 | PR-5 直接在 main 提交 | 实现前检查 `git branch -vv`，确认在 feat/pr-* 分支 |
+| amend 后普通 push 失败 | PR-4 SHA 变化被拒绝 | 用 `git push --force-with-lease origin <branch>` |
+| DataFrame index 不重置 | PR-4 + PR-5 连续踩坑 | 用业务列（timestamp）对齐，而非 DataFrame.index |
+| 跨 PR bug 越界 | PR-4 修 PR-3 bug、PR-5 修 PR-4 bug | PR 描述明确说明越界理由，最小改动 |
+| CI lint 高频失败 | PR-1~PR-5 共 10+ 次 | commit 前跑：`pytest` + `ruff check` + `mypy --strict` |
+| 测试不改全局状态 | PR-2 清空 REGISTRY | 用唯一命名，不清空全局注册表 |
+
+### 分支管理正确流程
+
+```bash
+# 1. 同步 main
+git checkout main && git pull
+
+# 2. 创建分支（规划后立即执行）
+git checkout -b feat/pr-N-<slug>
+
+# 3. 实现循环：实现 → pytest → ruff → mypy → git add → git commit
+
+# 4. 推送分支
+git push -u origin feat/pr-N-<slug>
+
+# 5. 创建 PR，等待 CI + merge
+```
+
+跨 PR Bug 处理
+
+发现 → 立即修复 → PR 描述说明越界 → 最小改动
+
+越界说明模板：
+## ⚠️ 越界说明
+文件 `<path>` 修改超出 PR-N 范围，**理由**：
+- PR-M 遗留 bug：<描述问题>
+- 发现时机：<集成测试 / 冒烟测试>
+- 属于必要修复，否则本 PR 无法通过
+
+测试金字塔
+
+冒烟测试 (效果验证) ← 发现 PR-4 bug (F1=0)
+  ↑
+集成测试 (流程验证) ← 发现 PR-3 bug (index 对齐)
+  ↑
+单元测试 (边界验证)
