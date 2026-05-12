@@ -14,7 +14,7 @@ from nextaiops_algo.storage.fs_artifact import FsArtifactStore
 from nextaiops_algo.storage.sqlite_tracking import SqliteTrackingStore
 
 from .evaluate import evaluate
-from .preprocess import read_csv_to_table, split_by_time
+from .preprocess import read_to_table, split_by_time
 
 
 def _validate_input(table: Table, algo: Algorithm) -> None:
@@ -103,7 +103,7 @@ def _validate_output(input_table: Table, result: Table, algo: Algorithm) -> None
 
 
 def run_experiment(
-    dataset_path: Path,
+    dataset_path: str | Path,
     algorithm_name: str,
     params: dict[str, object] | None = None,
     output_dir: Path | None = None,
@@ -112,7 +112,7 @@ def run_experiment(
     """Run a complete experiment: load data, train, evaluate, persist.
 
     Flow:
-    1. read_csv_to_table → validate input
+    1. read_to_table → validate input
     2. split_by_time → train/test
     3. algo.fit(train) → algo.detect(test) → validate output
     4. evaluate → metrics
@@ -121,7 +121,7 @@ def run_experiment(
     7. return RunResult
 
     Args:
-        dataset_path: Path to input CSV file.
+        dataset_path: Path to input data file (.csv/.out/.npy/.npz) or builtin dataset name.
         algorithm_name: Name of algorithm (must be in REGISTRY).
         params: Algorithm parameters (passed to algorithm if needed).
         output_dir: Base directory for artifacts. If None, uses default.
@@ -149,8 +149,8 @@ def run_experiment(
     # Generate run_id
     run_id = uuid.uuid4().hex[:12]
 
-    # Step 1: Load and validate input
-    full_table = read_csv_to_table(dataset_path)
+    # Step 1: Load and validate input (supports CSV, .out, npy, npz, builtin)
+    full_table = read_to_table(dataset_path)
     _validate_input(full_table, algo)
 
     # Step 2: Split train/test
@@ -172,7 +172,7 @@ def run_experiment(
     artifacts_path = str(artifact_store.path_for(run_id, ""))
     run_record = ExperimentRun(
         run_id=run_id,
-        dataset_version=dataset_path.name,
+        dataset_version=Path(dataset_path).name,
         algorithm_name=algorithm_name,
         params=params or {},
         status=RunStatus.COMPLETED,
