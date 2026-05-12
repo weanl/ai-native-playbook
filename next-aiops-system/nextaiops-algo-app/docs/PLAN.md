@@ -1,4 +1,15 @@
-# docs/PLAN.md — M0 任务拆解
+# docs/PLAN.md — M0 + M1 任务拆解（融合版）
+
+> 本文件用于替换本地 `next-aiops-system/nextaiops-algo-app/docs/PLAN.md`。
+> 融合原则：
+> 1. M0 保留为 Walking Skeleton 基线，不改变已规划的 6 个 PR 的边界。
+> 2. M1 在 M0 之后追加，围绕“多算法 × 单数据集批量实验 + 可视化对比”展开。
+> 3. TSB-UAD 作为 M1 的 optional dependency 接入，不进入默认安装路径。
+> 4. AI 启动每个 PR 时必须原文引用本 PR 的“范围”段落作为锚点。
+
+---
+
+# M0 任务拆解
 
 > M0 阶段以 6 个 PR 完成 Walking Skeleton。
 > AI 启动每个 PR 时必须原文引用本 PR 的“范围”段落作为锚点。
@@ -298,7 +309,7 @@ class AnomalyDetector(Algorithm, Protocol):
 
 ---
 
-## 依赖关系图
+## M0 依赖关系图
 
 ```text
 PR-1 (脚手架)
@@ -318,18 +329,865 @@ PR-6 (UI + 收尾)
 
 ---
 
-## M0 → M1 候选 proposal（仅参考，不在 M0 范围）
+## M0 → M1 候选 proposal（已融合进 M1）
 
-| ID  | 标题 | 依赖 |
+| 原 ID | 标题 | M1 去向 |
 | --- | --- | --- |
-| 001 | 接入 IsolationForest | M0 完整 |
-| 002 | 接入 LSTM-AutoEncoder | 001 |
-| 003 | 数据集版本化与多策略切分（含预切分模式） | M0 完整 |
-| 004 | 多实验横向对比视图 | M0 完整 |
-| 005 | 模型 + 配置打包导出 | M0 完整 |
-| 006 | 用户自定义 schema 覆盖（CSV 推断兜底） | M0 完整 |
-| 007 | 支持 ENTITY 角色（KPI 多实体场景） | M0 完整 |
-| 008 | 支持 LABEL_WINDOW（NAB 窗口标签） | M0 完整 |
-| 009 | 按指标分别输出与评估 | M0 完整 |
-| 010 | 迁移 MLflow（轻量自研→工业级） | 003 |
-| 011 | 评估命名空间包结构（共享 nextaiops 顶级） | 多子系统出现时 |
+| 001 | 接入 IsolationForest | 纳入 M1 PR-3 TSB-UAD 桥接 |
+| 002 | 接入 LSTM-AutoEncoder | 延后到 M2 深度学习算法桥接 |
+| 003 | 数据集版本化与多策略切分（含预切分模式） | 部分纳入 M1 PR-4 数据输入多样化；完整版本化延后 |
+| 004 | 多实验横向对比视图 | 纳入 M1 PR-5/PR-6/PR-7 |
+| 005 | 模型 + 配置打包导出 | 延后到 M2 |
+| 006 | 用户自定义 schema 覆盖（CSV 推断兜底） | 延后到 M2 或 M1 收尾候补 |
+| 007 | 支持 ENTITY 角色（KPI 多实体场景） | 延后到 M2 |
+| 008 | 支持 LABEL_WINDOW（NAB 窗口标签） | 延后到 M2 |
+| 009 | 按指标分别输出与评估 | M1 暂只做全局多指标 OR；按指标拆分延后 |
+| 010 | 迁移 MLflow（轻量自研→工业级） | 延后到 M2+ |
+| 011 | 评估命名空间包结构（共享 nextaiops 顶级） | 多子系统出现时再做 |
+
+---
+
+# M1 任务拆解：可视化批量实验能力
+
+> M1 阶段以 7 个 PR 完成“多算法 × 单数据集批量实验 + 可视化对比”能力。
+> 对应 M0 → M1 候选 proposal 中的 #001、#004、#009（部分），并新增评估扩充、TSB-UAD 桥接、批量引擎、数据输入多样化。
+
+## M1 总验收线
+
+打通批量实验闭环：
+**选定数据集 → 勾选多个算法 → 一键批量运行 → 排行榜 + 时序叠加对比 + 热力图 → 识别最优算法**
+
+完成标准：
+- [ ] 单数据集 × 5+ 算法批量实验一键跑通
+- [ ] 排行榜表格（按 PA-F1 排序、条件着色）可见
+- [ ] 时序曲线叠加对比图（多算法检测结果同图 + checkbox 切换）可见
+- [ ] 热力图（算法 × 指标矩阵）可见
+- [ ] 支持 CSV + TSB-UAD `.out` + npy/npz + 内置公开数据集四类输入
+- [ ] `make smoke` 覆盖所有默认注册算法；`make smoke-tsbuad` 覆盖 optional TSB-UAD 算法
+- [ ] CI 全绿；默认 CI 不强制安装 TSB-UAD 重依赖
+
+---
+
+## M1 调研结论：TSB-UAD 接入约束
+
+**安装方式**：
+- 推荐使用 PyPI 包作为 optional dependency：`TSB-UAD==0.0.3`
+- README 同时出现 `pip install tsb-uad` 与 `pip install TSB-UAD`，pip 名称规范化后等价。
+- 导入包名为 `TSB_UAD`。
+- 不建议 git submodule / vendor 代码；只有当必须使用 NormA / Series2Graph 等未包含在 PyPI 包中的算法时，才考虑本地源码安装。
+
+**依赖风险**：
+- `TSB-UAD==0.0.3` 的 `setup.py` 依赖包括 `tensorflow>=2.13.0`、`tslearn`、`stumpy`、`tsfresh`、`arch`、`scikit-learn`、`networkx` 等。
+- 因此 M1 必须将其放入 extras：`nextaiops-algo[tsbuad]`，避免污染基础环境和默认 CI。
+
+**数据集约束**：
+- TSB-UAD 的完整数据集不随 PyPI 包发布，README 说明因 GitHub 上传大小限制，数据集托管在外部下载。
+- Public v2 提供 29 个数据集、3,427 条时间序列。
+- TSB-UAD README 示例和公开 benchmark 常见格式是两列 `.out` 文件：第 1 列 value，第 2 列 label。
+- 因此 M1 PR-4 不应把 `.npy` 称为 TSB-UAD 标准格式；应新增 `.out` loader，并保留 `.npy/.npz` 作为通用数组输入。
+
+**首批算法约束**：
+- TSB-UAD 文档明确列出 LOF、HBOS、OCSVM、Isolation Forest、PCA 等。
+- 文档中未看到 KNN 作为 TSB-UAD 算法，因此 KNN 不纳入 M1 首批桥接。
+- M1 首批桥接算法调整为：`iforest`、`lof`、`ocsvm`、`pca`、`hbos`。
+
+**调研依据**：
+- GitHub README: https://github.com/TheDatumOrg/TSB-UAD
+- PyPI: https://pypi.org/project/TSB-UAD/
+- ReadTheDocs algorithms: https://tsb-uad.readthedocs.io/en/latest/algorithms/index.html
+- setup.py: https://raw.githubusercontent.com/TheDatumOrg/TSB-UAD/main/setup.py
+
+---
+
+## PR-1（M1）：评估指标扩充
+
+**目标**：从单一 F1 扩展到 Precision / Recall / F1 + Point-Adjust 系列，为批量对比提供多维评估基础。
+
+**范围**：
+- `src/nextaiops_algo/pipeline/evaluate.py` ← 重构扩展
+- `src/nextaiops_algo/core/experiment.py` ← 确认 RunResult.metrics 类型兼容
+- `tests/unit/test_evaluate.py` ← 扩展
+- `tests/unit/test_evaluate_pa.py` ← 新增
+- `docs/adr/0001-point-adjust-evaluation.md` ← 新增 ADR
+
+**具体内容**：
+
+| 指标 | 说明 | 实现要求 |
+|------|------|----------|
+| Precision | TP / (TP + FP) | 与 sklearn 一致 |
+| Recall | TP / (TP + FN) | 与 sklearn 一致 |
+| F1 | 2PR/(P+R) | 保持兼容 |
+| PA-Precision | Point-Adjust Precision | 基于调整后标签 |
+| PA-Recall | Point-Adjust Recall | 基于调整后标签 |
+| PA-F1 | Point-Adjust F1 | 排行榜默认排序指标 |
+
+**Point-Adjust 逻辑**：
+- 对每个连续异常段（ground truth label=1 的连续区间），只要预测命中其中任意一点，该整段所有点视为 TP。
+- 未被命中的整段所有点视为 FN。
+- FP 保持逐点计算。
+- 推荐实现独立函数：`point_adjust_labels(y_true, y_pred) -> np.ndarray`，再套标准 precision / recall / f1 计算。
+
+**关键设计点**：
+- `evaluate()` 返回值仍为 `dict[str, float]`，key 扩展为：
+  - `precision`
+  - `recall`
+  - `f1`
+  - `pa_precision`
+  - `pa_recall`
+  - `pa_f1`
+- `RunResult.metrics` 保持 `dict[str, float]`，无需改结构。
+- 空输入必须 fail-fast，不返回静默 0。
+- 无 LABEL 或无 `predicted_label` 时抛 `SchemaValidationError`。
+- `zero_division=0`，保证全 0 预测边界稳定。
+
+**验收线**：
+- [ ] 标准 Precision / Recall / F1 与 sklearn 结果一致（构造已知输入断言）
+- [ ] PA-F1 在“命中异常段任意一点”场景下 > 标准 F1（构造用例证明）
+- [ ] 全 0 预测、全 1 预测、空输入边界测试通过
+- [ ] 缺 label / 缺 predicted_label 时提前抛异常
+- [ ] `run_experiment` 输出的 metrics 包含 6 个 key
+- [ ] 既有 smoke 测试仍然全绿（兼容）
+
+**红线映射**：R1（修改 core/ 的 metrics 语义，需在 PR 描述记录 ADR）
+
+---
+
+## PR-2（M1）：IQR 算法
+
+**目标**：新增第二个自研统计型算法，验证插件机制的可扩展性。
+
+**范围**：
+- `src/nextaiops_algo/algorithms/iqr.py`
+- `tests/unit/test_iqr.py`
+- `tests/smoke/test_e2e_smoke.py` ← 参数化自动覆盖（无需手动新增）
+
+**IQR 算法设计**：
+- `fit()`：对每个 METRIC 列计算 Q1、Q3、IQR = Q3 - Q1。
+- `detect()`：
+  - `anomaly_score` = 距离 `[Q1 - k*IQR, Q3 + k*IQR]` 的归一化距离。
+  - `threshold_upper` = Q3 + k * IQR。
+  - `threshold_lower` = Q1 - k * IQR。
+  - `predicted_label` = 超出阈值为 1，多 metric OR 合并。
+- 超参：`k`（默认 1.5）。
+- 输出 Table 结构与 3-Sigma 完全一致。
+
+**关键设计点**：
+- 当 IQR=0 时，使用安全分母或退化策略，避免除零。
+- 多 METRIC 输出必须逐列包含：
+  - `<metric>.anomaly_score`
+  - `<metric>.threshold_upper`
+  - `<metric>.threshold_lower`
+- `REGISTRY` 名称为 `iqr`。
+- `fit()` 不接触存储，`detect()` 只消费/产出 Table。
+
+**验收线**：
+- [ ] `REGISTRY` 含 `iqr`
+- [ ] 单/多 METRIC 输入输出结构正确
+- [ ] 输出行数 == 输入行数
+- [ ] 在黄金数据集上 F1 > 0（非退化）
+- [ ] `make smoke ALG=iqr` 全绿
+
+**红线映射**：R2（算法仅消费/产出 Table，不接触存储）
+
+---
+
+## PR-3（M1）：TSB-UAD 算法桥接层
+
+**目标**：通过 Adapter 模式桥接 TSB-UAD 已有算法实现，快速扩充算法库到 5+ 个，同时保持默认安装轻量。
+
+**范围**：
+- `src/nextaiops_algo/algorithms/adapters/__init__.py`
+- `src/nextaiops_algo/algorithms/adapters/tsbuad_adapter.py` ← 通用适配器
+- `src/nextaiops_algo/algorithms/adapters/tsbuad_configs.py` ← 各算法默认参数
+- `src/nextaiops_algo/algorithms/adapters/tsbuad_registry.py` ← optional 注册入口
+- `tests/unit/test_tsbuad_adapter.py`
+- `tests/unit/test_tsbuad_import_guard.py`
+- `tests/smoke/test_tsbuad_smoke.py`
+- `pyproject.toml` ← 新增 optional dependency group `[tsbuad]`
+- `Makefile` ← 新增 `smoke-tsbuad`
+
+**依赖声明**：
+
+```toml
+[project.optional-dependencies]
+tsbuad = [
+  "TSB-UAD==0.0.3",
+]
+```
+
+**首批桥接算法**：
+
+| 算法 | TSB-UAD 类 | 类型 | M1 状态 |
+| ---- | ---------- | ---- | ------- |
+| IsolationForest | `IForest` | ML / tree | 纳入 |
+| LOF | `LOF` | ML / proximity | 纳入 |
+| OCSVM | `OCSVM` | ML / boundary | 纳入，允许单独适配 |
+| PCA | `PCA` | ML / encoding | 纳入 |
+| HBOS | `HBOS` | statistical | 纳入 |
+| KNN | 未在 TSB-UAD 文档首批算法中确认 | 暂不纳入 M1 |
+
+**桥接架构**：
+
+```python
+class TSBUADAdapter:
+    """将 TSB-UAD 算法包装为 AnomalyDetector 协议。"""
+
+    def __init__(
+        self,
+        algo_class: type,
+        default_params: dict[str, object],
+        threshold_method: str = "sigma",
+    ) -> None:
+        ...
+
+    def fit(self, data: Table) -> None:
+        # Table → metric ndarray
+        # 单变量默认走 sliding window
+        # 多变量先进入 M1 降级策略：逐 metric 打分后 max/OR 合并，避免误用 univariate 模型
+        ...
+
+    def detect(self, data: Table) -> Table:
+        # score → threshold → predicted_label
+        # 输出契约对齐 AnomalyDetector
+        ...
+```
+
+**输入转换策略**：
+- TSB-UAD 是 univariate benchmark。M1 不假设其所有算法原生支持多变量。
+- 单 METRIC：
+  1. `series = table.metrics().iloc[:, 0].to_numpy(dtype=float)`
+  2. `window = find_length(series)` 或配置固定窗口
+  3. `X = Window(window=window).convert(series)`
+  4. `model.fit(X)`
+  5. 读取 `decision_scores_`
+  6. 将 window-level score 对齐回原始长度
+- 多 METRIC：
+  - M1 默认逐 metric 独立运行 TSB-UAD 模型。
+  - 每列生成 score，再用 `max(score)` 合并为全局 `predicted_label`。
+  - 完整 multivariate bridge 延后到 M2。
+
+**阈值策略**：
+- 默认：`mean(scores) + 3 * std(scores)`。
+- 可配置：`threshold_method` 支持：
+  - `sigma`
+  - `percentile`
+  - `fixed`
+- 参数示例：
+
+```json
+{
+  "threshold_method": "percentile",
+  "threshold_percentile": 98
+}
+```
+
+**注册策略**：
+- 未安装 TSB-UAD 时，不注册 `iforest` / `lof` / `ocsvm` / `pca` / `hbos`，且不报错。
+- 安装 `nextaiops-algo[tsbuad]` 后，动态注册上述算法。
+- `make smoke` 默认只覆盖基础算法：`three_sigma`、`iqr`。
+- `make smoke-tsbuad` 在显式安装 extras 后覆盖 TSB-UAD 算法。
+
+**关键设计点**：
+- adapter 层负责 Table ↔ numpy 转换，TSB-UAD 源码零修改。
+- 不直接依赖 TSB-UAD 自带 `predict()` 作为唯一出口；优先读取 `decision_scores_` 并用项目内阈值策略生成 `predicted_label`。
+- 所有输出必须通过 M0 的 `_validate_output`。
+- OCSVM 如果接口与其他类不一致，允许在 adapter 中做 per-class hook。
+- 不把 TensorFlow 相关算法（LSTM / CNN / AE）纳入 M1，以控制复杂度与 CI 风险。
+
+**验收线**：
+- [ ] 未安装 `[tsbuad]` 时 `REGISTRY` 仅含基础算法，无 ImportError
+- [ ] 安装 `[tsbuad]` 后 `REGISTRY` 含 `iforest` `lof` `ocsvm` `pca` `hbos`
+- [ ] 每个桥接算法在黄金数据集上 F1 > 0 或 PA-F1 > 0（非退化）
+- [ ] 输出 Table 结构符合 AnomalyDetector 输出契约
+- [ ] `make smoke` 全绿（基础算法）
+- [ ] `make smoke-tsbuad` 全绿（显式安装 extras 后）
+- [ ] 默认 CI 不因 TSB-UAD 依赖失败而失败；可选 CI job 可单独覆盖 extras
+
+**红线映射**：R1（新增 adapter 模式需 ADR），R6（重依赖必须 optional）
+
+---
+
+## PR-4（M1）：数据输入多样化
+
+**目标**：支持 CSV / TSB-UAD `.out` / npy/npz / 内置公开数据集四类输入方式，为批量实验提供丰富数据源。
+
+**范围**：
+- `src/nextaiops_algo/pipeline/preprocess.py` ← 扩展统一入口
+- `src/nextaiops_algo/datasets/__init__.py`
+- `src/nextaiops_algo/datasets/registry.py` ← 数据集注册表
+- `src/nextaiops_algo/datasets/loaders.py` ← 各格式 loader
+- `src/nextaiops_algo/datasets/builtin/` ← 内置小型数据集（单个文件 < 1MB）
+- `tests/unit/test_loaders.py`
+- `tests/unit/test_builtin_datasets.py`
+
+**支持的输入格式**：
+
+| 格式 | 说明 | 加载方式 |
+| ---- | ---- | -------- |
+| CSV | M0 已有格式 | `read_csv_to_table(path)` |
+| `.out` | TSB-UAD 常见两列格式：value + label | `read_tsbuad_out_to_table(path)` |
+| npy | 通用数组格式 | `read_npy_to_table(data_path, label_path=None)` |
+| npz | 通用压缩数组格式 | `read_npz_to_table(path)` |
+| 内置数据集 | wheel 内打包的小型公开样例 | `load_builtin(name)` |
+
+**TSB-UAD `.out` loader 约定**：
+- 默认读取无表头两列：
+  - 第 1 列：`value`
+  - 第 2 列：`is_anomaly`
+- 输出 Table：
+  - `value` → METRIC
+  - `is_anomaly` → LABEL
+- 无 timestamp，后续 viz 使用 index。
+- 若发现列数不是 2，抛友好错误，提示使用 CSV loader 或显式 schema。
+
+**npy/npz 格式适配**：
+- `data.npy`：shape `(N,)` 或 `(N, features)`。
+- `label.npy`：shape `(N,)`，可选。
+- 多 feature 列自动命名：
+  - `metric_0`
+  - `metric_1`
+  - ...
+- 无 timestamp → Table 中不设 TIMESTAMP 角色。
+- npz 推荐 key：
+  - `data`
+  - `label`
+  - `timestamp`（可选）
+
+**内置数据集建议**：
+- `yahoo_sample`
+- `nab_sample`
+- `nasa_msl_sample`
+
+每个内置数据集附 metadata：
+
+```python
+{
+    "name": "yahoo_sample",
+    "source": "TSB-UAD Public / Yahoo",
+    "n_points": 1500,
+    "n_anomalies": 6,
+    "description": "Small Yahoo-like univariate time series for smoke and UI demo.",
+}
+```
+
+**关键设计点**：
+- 新增统一入口：`read_to_table(path_or_name: str | Path) -> Table`
+- 分发顺序：
+  1. 若命中 builtin registry → `load_builtin(name)`
+  2. 后缀 `.csv` → CSV
+  3. 后缀 `.out` → TSB-UAD out
+  4. 后缀 `.npy` / `.npz` → 数组 loader
+  5. 其他 → 抛友好错误
+- 内置数据集打包在 wheel 中，不依赖运行时网络下载。
+- `datasets/registry.py` 与 `algorithms/registry.py` 设计风格一致。
+- 不在 M1 自动下载完整 TSB-UAD 数据集；下载脚本可作为后续 M2 能力。
+
+**验收线**：
+- [ ] CSV 输入兼容 M0 行为，无回归
+- [ ] `.out` 输入可加载 TSB-UAD 两列数据并构造正确 Table
+- [ ] npy/npz 输入可构造正确 Table
+- [ ] 内置数据集：`list_builtin()` 返回 ≥ 3 个名称，`load_builtin()` 返回有效 Table
+- [ ] `read_to_table` 可根据后缀 / 名称自动分发
+- [ ] 所有 loader 对空文件、格式错误、长度不一致有友好错误提示
+- [ ] 内置数据集单文件均 < 1MB
+
+**红线映射**：R6（不引入未列依赖；内置数据不可膨胀 wheel）
+
+---
+
+## PR-5（M1）：批量实验引擎
+
+**目标**：核心能力——一次提交多算法 × 单数据集的矩阵实验，统一管理结果。
+
+**范围**：
+- `src/nextaiops_algo/pipeline/batch.py` ← 新增
+- `src/nextaiops_algo/core/experiment.py` ← 新增 BatchRun / BatchStatus 模型
+- `src/nextaiops_algo/storage/sqlite_tracking.py` ← 扩展 batch 表
+- `src/nextaiops_algo/storage/schema.sql` ← 新增 batches / batch_runs
+- `src/nextaiops_algo/cli/commands.py` ← 新增 batch / list-batches 命令
+- `tests/unit/test_batch.py`
+- `tests/integration/test_batch_e2e.py`
+
+**BatchRun 数据模型**：
+
+```python
+class BatchRun(BaseModel):
+    batch_id: str
+    dataset_source: str
+    algorithm_names: list[str]
+    created_at: datetime
+    runs: list[ExperimentRun]
+    status: BatchStatus  # PENDING / RUNNING / COMPLETED / PARTIAL_FAILED / FAILED
+```
+
+**批量引擎 API**：
+
+```python
+def run_batch(
+    dataset: str | Path,
+    algorithms: list[str] | Literal["__all__"],
+    params_override: dict[str, dict[str, object]] | None = None,
+    output_dir: Path | None = None,
+) -> BatchRun:
+    ...
+```
+
+**执行策略**：
+- M1 阶段顺序执行（for 循环），不引入并行。
+- 单个算法失败不阻断整个 batch：
+  - 捕获异常
+  - 标记该 run 为 FAILED
+  - 记录 error message
+  - 继续下一个算法
+- 执行过程打印进度：
+  - `[2/7] Running iqr...`
+- `__all__` 只表示当前已注册算法：
+  - 未安装 TSB-UAD 时只跑基础算法
+  - 安装 extras 后包含 TSB-UAD 算法
+
+**CLI 扩展**：
+
+```bash
+python -m nextaiops_algo batch \
+  --data tests/smoke/golden_data/metrics.csv \
+  --algos three_sigma,iqr,iforest,lof \
+  --output ./.nextaiops_algo/batch_results/
+```
+
+```bash
+python -m nextaiops_algo list-batches --limit 20
+```
+
+**SQLite schema 建议**：
+
+```sql
+CREATE TABLE IF NOT EXISTS batches (
+  batch_id TEXT PRIMARY KEY,
+  dataset_source TEXT NOT NULL,
+  algorithm_names_json TEXT NOT NULL,
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS batch_runs (
+  batch_id TEXT NOT NULL,
+  run_id TEXT NOT NULL,
+  algorithm_name TEXT NOT NULL,
+  status TEXT NOT NULL,
+  error_message TEXT,
+  PRIMARY KEY (batch_id, run_id),
+  FOREIGN KEY (batch_id) REFERENCES batches(batch_id),
+  FOREIGN KEY (run_id) REFERENCES runs(run_id)
+);
+```
+
+**验收线**：
+- [ ] `run_batch` 5 个算法 × 黄金数据集 一次跑通
+- [ ] 返回 BatchRun 含每个算法对应 ExperimentRun
+- [ ] 每个成功 run 有完整 metrics
+- [ ] 某算法故意传错参数 → 该 run FAILED，其余 COMPLETED
+- [ ] batch_id 可查询（`list-batches` CLI 命令）
+- [ ] SQLite 中 batch 表记录正确
+- [ ] `make smoke` 仍全绿
+
+**红线映射**：R3（追踪字段完整），R5（失败不能吞异常）
+
+---
+
+## PR-6（M1）：可视化三件套
+
+**目标**：M1 核心交付物——三种批量实验可视化视图。
+
+**范围**：
+- `src/nextaiops_algo/viz/leaderboard.py` ← 排行榜
+- `src/nextaiops_algo/viz/overlay.py` ← 时序叠加对比
+- `src/nextaiops_algo/viz/heatmap.py` ← 热力图
+- `tests/unit/test_viz_leaderboard.py`
+- `tests/unit/test_viz_overlay.py`
+- `tests/unit/test_viz_heatmap.py`
+
+### 视图 ① 排行榜表格
+
+```text
+输入：BatchRun
+输出：Pandas DataFrame（可直接用于 Streamlit st.dataframe）
+
+列：
+Algorithm
+Status
+F1
+PA-F1
+Precision
+Recall
+PA-Precision
+PA-Recall
+Error
+
+排序：默认按 PA-F1 降序
+样式：最优值加粗/高亮色，FAILED 行置灰
+```
+
+**函数签名**：
+
+```python
+def render_leaderboard(
+    batch_run: BatchRun,
+    sort_by: str = "pa_f1",
+) -> pd.DataFrame:
+    ...
+```
+
+### 视图 ② 时序曲线叠加对比
+
+```text
+输入：BatchRun + 原始数据 Table
+输出：Plotly Figure（HTML）
+
+布局：
+- 顶部：原始时序曲线 + Ground Truth 异常区间（灰色背景带）
+- 下方每个算法一行子图：
+  - 原始曲线（浅色）
+  - 该算法的 predicted_label 异常点（红色标记）
+  - threshold 线（虚线，如该算法输出 threshold）
+- 共享 X 轴（时间/索引）
+- 顶部提供 checkbox / legend 控制显示哪些算法行
+
+降级：
+- 无 timestamp → 用 index
+- 算法 FAILED → 该行显示 “FAILED” 注释
+- 多 METRIC → M1 默认展示第一个 metric；后续 M2 支持 metric selector
+```
+
+**函数签名**：
+
+```python
+def render_overlay(
+    batch_run: BatchRun,
+    input_table: Table,
+    metric_name: str | None = None,
+) -> plotly.graph_objects.Figure:
+    ...
+```
+
+### 视图 ③ 热力图（算法 × 指标矩阵）
+
+```text
+输入：BatchRun
+输出：Plotly Figure（HTML）
+
+布局：
+- X 轴：指标名（F1, PA-F1, Precision, Recall, ...）
+- Y 轴：算法名
+- 颜色：数值越高越深绿，越低越深红
+- 每个格子显示数值（保留 2 位小数）
+- 色阶：RdYlGn
+- FAILED 算法显示 NaN / 灰色
+```
+
+**函数签名**：
+
+```python
+def render_heatmap(
+    batch_run: BatchRun,
+    metrics: list[str] | None = None,
+) -> plotly.graph_objects.Figure:
+    ...
+```
+
+**关键设计点**：
+- 三个视图函数签名统一消费 `BatchRun`，不触碰 storage。
+- Plotly Figure 可 `.to_html()` 存为 artifact，也可直接传给 Streamlit `st.plotly_chart()`。
+- viz 层不重新计算指标，只消费 batch 结果。
+- 排行榜列名展示可用 UI 友好名，但底层 metrics key 维持 snake_case。
+
+**验收线**：
+- [ ] 排行榜：5 算法 BatchRun → 表格行数 = 5，按 PA-F1 排序正确
+- [ ] 时序叠加：生成 HTML，含 N+1 个 subplot（1 原始 + N 算法）
+- [ ] 热力图：颜色映射正确（构造已知数据断言最大值对应最高值）
+- [ ] FAILED 算法在排行榜中标灰、在时序图中显示 FAILED
+- [ ] 所有 HTML artifact 文件 size > 0 且含 `plotly` 标记
+
+**红线映射**：R2（viz 只消费 Table/Run，不接触算法实现），R5（测试不吞异常）
+
+---
+
+## PR-7（M1）：UI 整合 + 收尾
+
+**目标**：将批量实验能力集成到 Streamlit UI，更新文档，完成 M1 交付。
+
+**范围**：
+- `src/nextaiops_algo/ui/app.py` ← 重构，新增批量实验入口
+- `src/nextaiops_algo/ui/pages/batch_experiment.py` ← 新页面
+- `src/nextaiops_algo/cli/commands.py` ← 补充 `batch` / `list-batches` 命令说明
+- `docs/PLAN.md` ← 更新 M0 验收 checkbox 为已完成 + M1 验收线
+- `docs/architecture/M1-batch.md` ← M1 架构补充文档
+- `docs/adr/0001-point-adjust-evaluation.md`
+- `docs/adr/0002-tsbuad-bridge-pattern.md`
+- `README.md` ← 更新快速开始 + 项目状态
+- `Makefile` ← 如需要，新增 `demo-batch` 或复用 `make demo`
+
+**Streamlit 批量实验页面交互流**：
+1. 选择数据源：
+   - 上传 CSV
+   - 上传 TSB-UAD `.out`
+   - 上传 npy/npz
+   - 选择内置数据集
+2. 勾选算法：
+   - checkbox 列表来自 REGISTRY
+   - 支持“全选”
+   - 未安装 TSB-UAD 时显示提示：“安装 nextaiops-algo[tsbuad] 可解锁更多算法”
+3. 点击「开始批量实验」→ 显示进度条。
+4. 完成后切换 Tab：
+   - Tab 1：排行榜表格（可点击列头排序）
+   - Tab 2：时序叠加对比图
+   - Tab 3：热力图
+5. 支持查看历史 Batch：
+   - 侧边栏下拉选择 batch_id
+   - 重新加载排行榜与图表
+
+**README 更新要求**：
+- 增加基础安装：
+
+```bash
+pip install -e ".[dev]"
+```
+
+- 增加 TSB-UAD optional 安装：
+
+```bash
+pip install -e ".[dev,tsbuad]"
+```
+
+- 增加批量实验 CLI 示例：
+
+```bash
+python -m nextaiops_algo batch \
+  --data yahoo_sample \
+  --algos three_sigma,iqr,iforest,lof
+```
+
+- 增加 UI 示例：
+
+```bash
+make demo
+```
+
+**ADR 要求**：
+- `docs/adr/0001-point-adjust-evaluation.md`
+  - 为什么新增 PA 指标
+  - 与标准 F1 的差异
+  - 边界行为
+- `docs/adr/0002-tsbuad-bridge-pattern.md`
+  - 为什么 TSB-UAD 作为 optional dependency
+  - 为什么用 Adapter 而不是 vendor
+  - 为什么 M1 不纳入深度学习算法
+  - 为什么 KNN 暂不纳入 TSB-UAD 首批桥接
+
+**验收线**：
+- [ ] Streamlit 批量实验页面完整走通
+- [ ] 三种视图均可在 UI 中交互展示
+- [ ] 内置数据集可在 UI 中直接选择使用
+- [ ] CLI `batch` 命令与 UI 功能对等
+- [ ] ADR 文档已撰写（至少 2 篇）
+- [ ] README 更新反映 M1 能力
+- [ ] M1 总验收线全部 ✅
+
+**红线映射**：R6（UI 不写业务逻辑，只调用 pipeline/viz/storage 查询接口）
+
+---
+
+## M1 依赖关系图
+
+```text
+PR-1 (评估指标扩充)
+   ↓
+PR-2 (IQR 算法) ─────────────┐
+   ↓                          │
+PR-3 (TSB-UAD 桥接) ─────────┤
+   ↓                          │
+PR-4 (数据输入多样化) ────────┤
+                              ↓
+                    PR-5 (批量实验引擎) ← 依赖 PR-1~4
+                              ↓
+                    PR-6 (可视化三件套) ← 依赖 PR-5
+                              ↓
+                    PR-7 (UI 整合 + 收尾) ← 依赖 PR-6
+```
+
+PR-1 为前置（评估指标被后续所有 PR 使用）。
+PR-2 / PR-3 / PR-4 可并行开发（都依赖 PR-1，但彼此无强依赖）。
+PR-5 → PR-6 → PR-7 线性推进。
+
+---
+
+## M1 实施顺序建议
+
+### 推荐分支策略
+
+```bash
+git checkout -b docs/merge-m1-plan
+```
+
+完成 PLAN 更新后合并文档分支，再按 PR 顺序创建实现分支：
+
+```bash
+git checkout -b feat/m1-pr1-evaluation-metrics
+git checkout -b feat/m1-pr2-iqr
+git checkout -b feat/m1-pr3-tsbuad-adapter
+git checkout -b feat/m1-pr4-datasets
+git checkout -b feat/m1-pr5-batch-engine
+git checkout -b feat/m1-pr6-batch-viz
+git checkout -b feat/m1-pr7-ui-integration
+```
+
+### 每个 PR 启动前
+
+AI 或开发者必须先在 PR 描述中原文引用对应 PR 的“范围”段落，作为 scope anchor。
+
+### 每个 PR 合并前
+
+至少执行：
+
+```bash
+make lint
+make test
+make smoke
+```
+
+如果 PR-3 或后续涉及 TSB-UAD extras：
+
+```bash
+pip install -e ".[dev,tsbuad]"
+make smoke-tsbuad
+```
+
+### 建议的落地节奏
+
+1. 先合并本 PLAN 文件。
+2. 完成 M0，如果 M0 尚未全部通过，不进入 M1 实现。
+3. M1 PR-1 先做评估指标扩充。
+4. M1 PR-2 / PR-3 / PR-4 可并行，但推荐顺序为：
+   - PR-2 IQR：快速扩充基础算法，风险最低。
+   - PR-4 数据输入：先稳定 loader。
+   - PR-3 TSB-UAD：重依赖和接口风险较高，最后做。
+5. PR-5 开始批量引擎。
+6. PR-6 可视化三件套。
+7. PR-7 UI + README + ADR 收尾。
+
+---
+
+## M1 → M2 候选 proposal（仅参考）
+
+| ID  | 标题 | 备注 |
+| --- | --- | --- |
+| 012 | 多数据集批量实验（算法 × 数据集完整矩阵） | 扩展 batch 引擎 |
+| 013 | 箱线图 + CD 图（多数据集稳定性分析） | 需 012 |
+| 014 | Range-F1 / VUS 高级指标 | 评估体系完善 |
+| 015 | 并行执行引擎（multiprocessing / Ray） | 规模 >10 时需要 |
+| 016 | 深度学习算法桥接（LSTM-AE / CNN / TranAD） | GPU + PyTorch / TensorFlow 依赖管理 |
+| 017 | 自定义阈值策略插件化 | 从 adapter 硬编码抽离 |
+| 018 | 模型 + 配置打包导出 | M0 候选 005 延续 |
+| 019 | MLflow 后端集成 | M0 候选 010 延续 |
+| 020 | 用户自定义 schema 覆盖 | M0 候选 006 延续 |
+| 021 | ENTITY 角色与多实体训练 | M0 候选 007 延续 |
+| 022 | LABEL_WINDOW / NAB 窗口标签 | M0 候选 008 延续 |
+| 023 | 按 metric 分别输出与评估 | M0 候选 009 延续 |
+| 024 | 自动下载 / 缓存 TSB-UAD Public v2 | 需数据许可与缓存策略确认 |
+
+---
+
+# 附录 A：替换本地 PLAN.md 的操作步骤
+
+## 方式 1：直接覆盖
+
+在仓库根目录执行：
+
+```bash
+cp /path/to/downloaded/PLAN_merged_M0_M1.md nextaiops-algo-app/docs/PLAN.md
+git diff -- nextaiops-algo-app/docs/PLAN.md
+```
+
+确认 diff 后提交：
+
+```bash
+git add nextaiops-algo-app/docs/PLAN.md
+git commit -m "docs: merge M1 batch experiment plan"
+```
+
+## 方式 2：人工追加 M1
+
+如果你希望 M0 原文完全不动，只追加 M1：
+
+1. 打开本文件。
+2. 从 `# M1 任务拆解：可视化批量实验能力` 开始复制到文件末尾。
+3. 追加到本地 `nextaiops-algo-app/docs/PLAN.md` 的末尾。
+4. 将本地原文件中的 `## M0 → M1 候选 proposal（仅参考，不在 M0 范围）` 可保留，也可替换为本文件中的“已融合进 M1”版本。
+
+## 覆盖后验证
+
+```bash
+cd next-aiops-system/nextaiops-algo-app
+grep -n "M1 任务拆解" docs/PLAN.md
+grep -n "TSB-UAD" docs/PLAN.md
+git diff -- docs/PLAN.md
+```
+
+如果当前 M0 仍在进行，建议只提交文档，不启动 M1 代码改动。
+
+---
+
+# 附录 B：TSB-UAD 本地验证命令
+
+```bash
+cd next-aiops-system/nextaiops-algo-app
+
+python -m venv .venv
+source .venv/bin/activate
+
+pip install -e ".[dev]"
+make smoke
+
+pip install -e ".[dev,tsbuad]"
+python - <<'PY'
+from TSB_UAD.models.iforest import IForest
+from TSB_UAD.models.lof import LOF
+from TSB_UAD.models.ocsvm import OCSVM
+from TSB_UAD.models.pca import PCA
+from TSB_UAD.models.hbos import HBOS
+
+print("TSB-UAD imports OK")
+PY
+
+make smoke-tsbuad
+```
+
+> 注意：如果本地 Python / TensorFlow 依赖冲突，先不要把问题扩散到默认开发环境。M1 PR-3 应优先保证“未安装 extras 时 graceful degradation”。
+
+---
+
+# 附录 C：M1 PR 启动模板
+
+```markdown
+## Scope Anchor
+
+> 原文引用本 PR 的“范围”段落。
+
+## 本 PR 做什么
+
+- ...
+
+## 本 PR 不做什么
+
+- ...
+
+## 验收方式
+
+- [ ] make lint
+- [ ] make test
+- [ ] make smoke
+- [ ] 如涉及 tsbuad：make smoke-tsbuad
+
+## 风险与回滚
+
+- ...
+```
