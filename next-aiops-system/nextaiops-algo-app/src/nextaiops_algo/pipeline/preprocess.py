@@ -1,96 +1,43 @@
-"""Preprocessing utilities for CSV → Table conversion and data splitting."""
+"""Preprocessing utilities for data → Table conversion and splitting."""
 
-import logging
 from pathlib import Path
 
-import pandas as pd
-
-from nextaiops_algo.core.exceptions import SchemaValidationError
-from nextaiops_algo.core.table import FieldRole, Table, TableSchema
-
-logger = logging.getLogger(__name__)
-
-# Column name patterns for role inference (case-insensitive)
-TIMESTAMP_PATTERNS = {"timestamp", "time", "ts", "datetime"}
-LABEL_PATTERNS = {"label", "anomaly", "is_anomaly", "y"}
+from nextaiops_algo.core.table import Table
+from nextaiops_algo.datasets.loaders import (
+    read_csv_to_table as _read_csv_to_table,
+)
+from nextaiops_algo.datasets.loaders import (
+    read_to_table as _read_to_table,
+)
 
 
 def read_csv_to_table(path: Path, dataset_version: str | None = None) -> Table:
     """Read CSV file and infer column roles to create a Table.
 
-    Inference rules (AGENTS.md §9.4):
-    - TIMESTAMP: column name matches timestamp/time/ts/datetime (case-insensitive)
-    - LABEL: column name matches label/anomaly/is_anomaly/y (case-insensitive)
-    - METRIC: other numeric columns
-    - Non-numeric columns: skipped with WARNING log
+    Backward-compatible wrapper — delegates to datasets.loaders.read_csv_to_table.
 
     Args:
         path: Path to the CSV file.
-        dataset_version: Optional version identifier. If None, uses file hash.
+        dataset_version: Unused in M1 (kept for backward compat).
 
     Returns:
         Table with inferred schema.
-
-    Raises:
-        SchemaValidationError: If no METRIC columns found or multiple TIMESTAMP/LABEL matches.
-        FileNotFoundError: If CSV file does not exist.
     """
-    if not path.exists():
-        raise FileNotFoundError(f"CSV file not found: {path}")
+    return _read_csv_to_table(path)
 
-    df = pd.read_csv(path)
 
-    roles: dict[str, FieldRole] = {}
-    timestamp_count = 0
-    label_count = 0
+def read_to_table(path_or_name: str | Path) -> Table:
+    """Unified entry: load data from path or builtin dataset name.
 
-    for col in df.columns:
-        col_lower = col.lower()
+    Delegates to datasets.loaders.read_to_table.
 
-        # Check TIMESTAMP patterns
-        if col_lower in TIMESTAMP_PATTERNS:
-            roles[col] = FieldRole.TIMESTAMP
-            timestamp_count += 1
-            continue
+    Args:
+        path_or_name: File path (.csv/.out/.npy/.npz) or builtin dataset name.
 
-        # Check LABEL patterns
-        if col_lower in LABEL_PATTERNS:
-            roles[col] = FieldRole.LABEL
-            label_count += 1
-            continue
-
-        # Check if numeric for METRIC
-        if pd.api.types.is_numeric_dtype(df[col]):
-            roles[col] = FieldRole.METRIC
-        else:
-            # Non-numeric, skip with warning
-            logger.warning(
-                f"Skipping non-numeric column '{col}' in CSV '{path.name}'. "
-                f"M1 will support explicit schema override."
-            )
-
-    # Validate constraints
-    if timestamp_count > 1:
-        raise SchemaValidationError(
-            f"Found {timestamp_count} TIMESTAMP columns, max allowed is 1",
-            context={"timestamp_columns": [c for c, r in roles.items() if r == FieldRole.TIMESTAMP]},
-        )
-
-    if label_count > 1:
-        raise SchemaValidationError(
-            f"Found {label_count} LABEL columns, max allowed is 1",
-            context={"label_columns": [c for c, r in roles.items() if r == FieldRole.LABEL]},
-        )
-
-    metric_cols = [c for c, r in roles.items() if r == FieldRole.METRIC]
-    if len(metric_cols) == 0:
-        raise SchemaValidationError(
-            "No METRIC columns found in CSV. At least 1 numeric column required.",
-            context={"file": str(path), "columns": list(df.columns)},
-        )
-
-    schema = TableSchema(roles=roles)
-    return Table(df=df, schema=schema)
+    Returns:
+        Table loaded from the appropriate source.
+    """
+    return _read_to_table(path_or_name)
 
 
 def split_by_time(table: Table, ratio: float = 0.7) -> tuple[Table, Table]:
