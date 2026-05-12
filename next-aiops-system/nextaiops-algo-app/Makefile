@@ -1,7 +1,7 @@
 # NextAIOpsAlgoApp Makefile
 # M0 Walking Skeleton
 
-.PHONY: dev test lint fmt smoke demo clean help
+.PHONY: dev test lint fmt smoke demo clean help setup
 
 # 默认目标
 .DEFAULT_GOAL := help
@@ -84,6 +84,9 @@ demo: ## 启动 Streamlit demo
 install: ## 安装项目（开发模式）
 	$(PYTHON) -m pip install -e ".[dev]"
 
+setup: ## 设置 git hooks（拦截 main 推送）
+	git config core.hooksPath scripts/hooks
+
 clean: ## 清理缓存和临时文件
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
@@ -106,6 +109,7 @@ help: ## 显示帮助信息
 	@echo "  make fmt          格式化代码"
 	@echo "  make smoke ALG=X  冒烟测试（指定算法）"
 	@echo "  make demo         启动 Streamlit demo"
+	@echo "  make setup        设置 git hooks"
 	@echo ""
 	@echo "完整命令列表:"
 	@grep -E '^([a-zA-Z_-]+):.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
