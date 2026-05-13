@@ -7,9 +7,14 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from nextaiops_algo.core.table import FieldRole, Table
+from nextaiops_algo.pipeline.profile import anomaly_segments
 
 
-def plot_timeseries(table: Table, output_path: Path | None = None) -> str:
+def plot_timeseries(
+    table: Table,
+    output_path: Path | None = None,
+    input_table: Table | None = None,
+) -> str:
     """Plot time-series with anomaly markers and thresholds.
 
     Creates a Plotly HTML visualization with:
@@ -22,6 +27,7 @@ def plot_timeseries(table: Table, output_path: Path | None = None) -> str:
     Args:
         table: Output Table from anomaly detection algorithm.
         output_path: Optional path to save HTML file. If None, returns HTML string.
+        input_table: Optional evaluated input Table containing ground-truth labels.
 
     Returns:
         HTML string of the visualization.
@@ -52,6 +58,12 @@ def plot_timeseries(table: Table, output_path: Path | None = None) -> str:
 
         # Original metric line
         y_values = table.df[metric].reset_index(drop=True)
+        y_true = _aligned_true_labels(input_table, len(table.df))
+        y_pred = _predicted_labels(table)
+
+        if y_true is not None:
+            _add_ground_truth_bands(fig, x_values, y_true)
+
         fig.add_trace(
             go.Scatter(
                 x=x_values,
@@ -94,23 +106,10 @@ def plot_timeseries(table: Table, output_path: Path | None = None) -> str:
                 col=1,
             )
 
-        # Anomaly markers (from predicted_label)
-        if "predicted_label" in table.df.columns:
-            predicted = table.df["predicted_label"].reset_index(drop=True)
-            anomaly_mask = predicted == 1
-
-            if anomaly_mask.any():
-                fig.add_trace(
-                    go.Scatter(
-                        x=x_values[anomaly_mask],
-                        y=y_values[anomaly_mask],
-                        mode="markers",
-                        name="Anomaly",
-                        marker={"color": "red", "size": 10, "symbol": "circle"},
-                    ),
-                    row=row,
-                    col=1,
-                )
+        if y_true is not None and y_pred is not None:
+            _add_classification_markers(fig, x_values, y_values, y_true, y_pred, row)
+        elif y_pred is not None:
+            _add_predicted_markers(fig, x_values, y_values, y_pred, row)
 
     # Update layout
     fig.update_layout(
@@ -130,3 +129,104 @@ def plot_timeseries(table: Table, output_path: Path | None = None) -> str:
         output_path.write_text(html)
 
     return html
+
+
+def _predicted_labels(table: Table) -> pd.Series | None:
+    """Return predicted labels when present."""
+    if "predicted_label" not in table.df.columns:
+        return None
+    return table.df["predicted_label"].reset_index(drop=True).fillna(0).astype(int)
+
+
+def _aligned_true_labels(input_table: Table | None, expected_len: int) -> pd.Series | None:
+    """Return true labels aligned by row when available."""
+    if input_table is None:
+        return None
+    labels = input_table.labels()
+    if labels is None or len(labels) != expected_len:
+        return None
+    return labels.reset_index(drop=True).fillna(0).astype(int)
+
+
+def _add_ground_truth_bands(fig: go.Figure, x_values: pd.Series, y_true: pd.Series) -> None:
+    """Add translucent bands for ground-truth anomaly segments."""
+    for start, end in anomaly_segments(y_true.tolist()):
+        fig.add_vrect(
+            x0=x_values.iloc[start],
+            x1=x_values.iloc[end],
+            fillcolor="#64748b",
+            opacity=0.12,
+            line_width=0,
+            layer="below",
+        )
+
+
+def _add_classification_markers(
+    fig: go.Figure,
+    x_values: pd.Series,
+    y_values: pd.Series,
+    y_true: pd.Series,
+    y_pred: pd.Series,
+    row: int,
+) -> None:
+    """Add TP/FP/FN markers."""
+    masks = {
+        "TP": (y_true == 1) & (y_pred == 1),
+        "FP": (y_true == 0) & (y_pred == 1),
+        "FN": (y_true == 1) & (y_pred == 0),
+    }
+    styles = {
+        "TP": {"color": "#16a34a", "symbol": "circle", "size": 9},
+        "FP": {"color": "#f97316", "symbol": "x", "size": 10},
+        "FN": {"color": "#dc2626", "symbol": "diamond", "size": 9},
+    }
+
+    for label, mask in masks.items():
+        if mask.any():
+            fig.add_trace(
+                go.Scatter(
+                    x=x_values[mask],
+                    y=y_values[mask],
+                    mode="markers",
+                    name=label,
+                    marker=styles[label],
+                    customdata=pd.DataFrame(
+                        {
+                            "true": y_true[mask].to_numpy(),
+                            "pred": y_pred[mask].to_numpy(),
+                        }
+                    ),
+                    hovertemplate=(
+                        "x=%{x}<br>"
+                        "value=%{y}<br>"
+                        "true=%{customdata[0]}<br>"
+                        "pred=%{customdata[1]}<br>"
+                        f"class={label}<extra>{label}</extra>"
+                    ),
+                ),
+                row=row,
+                col=1,
+            )
+
+
+def _add_predicted_markers(
+    fig: go.Figure,
+    x_values: pd.Series,
+    y_values: pd.Series,
+    y_pred: pd.Series,
+    row: int,
+) -> None:
+    """Add legacy predicted anomaly markers when true labels are unavailable."""
+    anomaly_mask = y_pred == 1
+    if anomaly_mask.any():
+        fig.add_trace(
+            go.Scatter(
+                x=x_values[anomaly_mask],
+                y=y_values[anomaly_mask],
+                mode="markers",
+                name="Anomaly",
+                marker={"color": "red", "size": 10, "symbol": "circle"},
+            ),
+            row=row,
+            col=1,
+        )

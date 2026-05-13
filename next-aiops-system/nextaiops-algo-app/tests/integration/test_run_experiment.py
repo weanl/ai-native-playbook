@@ -1,5 +1,6 @@
 """Integration tests for pipeline/run_experiment.py."""
 
+import json
 import tempfile
 from pathlib import Path
 
@@ -115,6 +116,33 @@ class TestRunExperiment:
             # viz.html may not exist if plotly not installed
             # but we check that the path is set correctly
             assert result.artifacts_path is not None
+
+        csv_path.unlink()
+
+    def test_diagnostics_json_generated(self) -> None:
+        """Test that diagnostics.json is generated in artifacts."""
+        csv_path = _create_test_csv(
+            n_rows=100,
+            with_labels=True,
+            anomaly_indices=[80, 81, 82],
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = run_experiment(
+                dataset_path=csv_path,
+                algorithm_name="three_sigma",
+                output_dir=Path(tmpdir),
+                split_ratio=0.7,
+            )
+
+            diagnostics_path = Path(result.artifacts_path) / "diagnostics.json"
+            assert diagnostics_path.exists()
+            diagnostics = json.loads(diagnostics_path.read_text())
+            assert "true_anomalies" in diagnostics
+            assert "predicted_anomalies" in diagnostics
+            assert "tp" in diagnostics
+            assert "fp" in diagnostics
+            assert "fn" in diagnostics
 
         csv_path.unlink()
 

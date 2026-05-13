@@ -1,5 +1,6 @@
 """Main experiment orchestration - run_experiment entry point."""
 
+import json
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +19,7 @@ from nextaiops_algo.core.table import FieldRole, Table
 from nextaiops_algo.storage.fs_artifact import FsArtifactStore
 from nextaiops_algo.storage.sqlite_tracking import SqliteTrackingStore
 
+from .diagnostics import diagnose_detection
 from .evaluate import evaluate
 from .preprocess import read_to_table, split_by_time
 
@@ -172,6 +174,7 @@ def run_experiment(
 
     # Step 4: Evaluate
     metrics = evaluate(test_table, result_table)
+    diagnostics = diagnose_detection(test_table, result_table)
 
     # Step 5: Log run to tracking store
     artifacts_path = str(artifact_store.path_for(run_id, ""))
@@ -195,6 +198,8 @@ def run_experiment(
     detect_csv_path = Path(artifacts_path) / "detect_output.csv"
     detect_csv_path.parent.mkdir(parents=True, exist_ok=True)
     result_table.df.to_csv(detect_csv_path, index=False)
+    diagnostics_path = Path(artifacts_path) / "diagnostics.json"
+    diagnostics_path.write_text(json.dumps(diagnostics.to_dict(), indent=2, sort_keys=True))
 
     specs = get_algorithm_param_specs(algorithm_name)
     run_identity_params = identity_params(specs, normalized_params) if specs else normalized_params
@@ -206,7 +211,7 @@ def run_experiment(
         from nextaiops_algo.viz.timeseries import plot_timeseries
 
         viz_path = artifact_store.path_for(run_id, "viz.html")
-        viz_html = plot_timeseries(result_table, viz_path)
+        viz_html = plot_timeseries(result_table, viz_path, input_table=test_table)
         artifact_store.put(run_id, "viz.html", viz_html.encode("utf-8"))
     except ImportError:
         # plotly not installed - skip viz (env issue, not code)
