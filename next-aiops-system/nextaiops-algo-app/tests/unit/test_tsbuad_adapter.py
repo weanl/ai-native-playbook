@@ -1,6 +1,5 @@
 """Tests for TSBUADAdapter - verifying adapter mechanics with mock TSB-UAD models."""
 
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -12,7 +11,11 @@ from nextaiops_algo.algorithms.adapters.tsbuad_adapter import (
     _find_window_length,
     _sliding_window_convert,
 )
-from nextaiops_algo.algorithms.adapters.tsbuad_configs import TSBUADAlgoConfig
+from nextaiops_algo.algorithms.adapters.tsbuad_configs import (
+    DEFAULT_RANDOM_STATE,
+    TSBUAD_ALGO_CONFIGS,
+    TSBUADAlgoConfig,
+)
 from nextaiops_algo.core.algorithm import TaskType
 from nextaiops_algo.core.table import FieldRole, Table, TableSchema
 
@@ -313,3 +316,11 @@ class TestTSBUADAdapterWithMock:
         adapter.fit(table)
         result = adapter.detect(table)
         assert "predicted_label" in result.df.columns
+
+
+class TestTSBUADConfigs:
+    """Tests for concrete TSB-UAD adapter configs."""
+
+    def test_iforest_declares_explicit_random_state(self) -> None:
+        """IForest must declare a seed for reproducible smoke behavior."""
+        assert TSBUAD_ALGO_CONFIGS["iforest"].default_params["random_state"] == DEFAULT_RANDOM_STATE
