@@ -57,6 +57,18 @@ def _make_output_table(
     return Table(df=df, schema=schema)
 
 
+def _make_input_table_for_output(n_rows: int) -> Table:
+    """Create aligned input table with true labels for visualization tests."""
+    labels = [0] * n_rows
+    if n_rows >= 6:
+        labels[2] = 1
+        labels[3] = 1
+
+    df = pd.DataFrame({"value": [float(i) for i in range(n_rows)], "label": labels})
+    schema = TableSchema(roles={"value": FieldRole.METRIC, "label": FieldRole.LABEL})
+    return Table(df=df, schema=schema)
+
+
 class TestPlotTimeseries:
     """Tests for plot_timeseries function."""
 
@@ -120,6 +132,17 @@ class TestPlotTimeseries:
 
         assert "Anomaly" in html
         assert "red" in html  # Color for anomaly markers
+
+    def test_ground_truth_classification_markers_visible(self) -> None:
+        """When input labels are provided, TP/FP/FN markers are rendered."""
+        table = _make_output_table(10)
+        input_table = _make_input_table_for_output(10)
+        html = plot_timeseries(table, input_table=input_table)
+
+        assert "TP" in html
+        assert "FP" in html
+        assert "FN" in html
+        assert "class=TP" in html
 
     def test_file_size_greater_than_zero(self) -> None:
         """Test that saved file has positive size."""

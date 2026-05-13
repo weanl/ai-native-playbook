@@ -246,6 +246,53 @@ def _render_profile_summary(profile: TableProfile) -> None:
     label_cols[3].metric("最长异常段", profile.label.longest_segment)
 
 
+def _render_single_result(result_artifacts_path: str, metrics: dict[str, float]) -> None:
+    """Render explainable single-run result summary."""
+    diagnostics_path = Path(result_artifacts_path) / "diagnostics.json"
+    if diagnostics_path.exists():
+        diagnostics = json.loads(diagnostics_path.read_text())
+        st.subheader("检测数量摘要")
+        count_cols = st.columns(4)
+        count_cols[0].metric("真实异常点", diagnostics.get("true_anomalies", 0))
+        count_cols[1].metric("算法检出点", diagnostics.get("predicted_anomalies", 0))
+        count_cols[2].metric("命中 TP", diagnostics.get("tp", 0))
+        count_cols[3].metric("误报 FP", diagnostics.get("fp", 0))
+
+        miss_cols = st.columns(4)
+        miss_cols[0].metric("漏检 FN", diagnostics.get("fn", 0))
+        miss_cols[1].metric("正常 TN", diagnostics.get("tn", 0))
+        miss_cols[2].metric("真实异常段", diagnostics.get("true_segments", 0))
+        miss_cols[3].metric("命中异常段", diagnostics.get("hit_segments", 0))
+    else:
+        st.info("当前实验没有 diagnostics.json，无法展示检测数量摘要。")
+
+    st.subheader("评估指标")
+    metrics_df = pd.DataFrame(
+        [
+            {
+                "指标": display_name,
+                "值": round(metrics.get(metric_name, 0.0), 4),
+                "含义": description,
+            }
+            for metric_name, display_name, description in _metric_explanations()
+            if metric_name in metrics
+        ]
+    )
+    st.dataframe(metrics_df, use_container_width=True, hide_index=True)
+
+
+def _metric_explanations() -> list[tuple[str, str, str]]:
+    """Return metric display names and explanations."""
+    return [
+        ("precision", "Precision", "检出的异常中有多少是真的，越高说明误报越少"),
+        ("recall", "Recall", "真实异常中有多少被检出，越高说明漏报越少"),
+        ("f1", "F1", "Precision 与 Recall 的综合平衡"),
+        ("pa_precision", "PA-Precision", "按异常段调整后的 Precision"),
+        ("pa_recall", "PA-Recall", "按异常段调整后的 Recall"),
+        ("pa_f1", "PA-F1", "按异常段调整后的 F1，更贴近运维场景"),
+    ]
+
+
 def _render_single_experiment(upload_ok: bool, input_table: Table | None, data_source: str) -> None:
     """Render single algorithm experiment page."""
     if not upload_ok:
@@ -281,10 +328,7 @@ def _render_single_experiment(upload_ok: bool, input_table: Table | None, data_s
         result = st.session_state["last_result"]
         st.subheader(f"最近实验 (run_id: {result.run_id})")
 
-        metrics_df = pd.DataFrame(
-            [{"指标": k, "值": round(v, 4)} for k, v in result.metrics.items()]
-        )
-        st.dataframe(metrics_df, use_container_width=True, hide_index=True)
+        _render_single_result(result.artifacts_path, result.metrics)
 
         viz_path = Path(result.artifacts_path) / "viz.html"
         if viz_path.exists():
