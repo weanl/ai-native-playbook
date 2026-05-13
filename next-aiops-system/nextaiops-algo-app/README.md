@@ -73,47 +73,65 @@ pip install -e ".[dev]"
 # 2. 跑一次冒烟实验（CLI）
 python -m nextaiops_algo run --data tests/smoke/golden_data/metrics.csv --algo three_sigma
 
-# 3. 启动可视化看板
+# 3. 跑批量实验（CLI）
+python -m nextaiops_algo batch --data tests/smoke/golden_data/metrics.csv --algos three_sigma,iqr
+
+# 4. 启动可视化看板
 streamlit run src/nextaiops_algo/ui/app.py
 # 浏览器打开 http://localhost:8501
-# 上传 tests/smoke/golden_data/metrics.csv → 选 three_sigma → 跑 → 看图
+# 上传 CSV → 选算法 → 跑 → 看图
+# 或切换到「批量实验」页面 → 勾选多个算法 → 排行榜 + 时序对比 + 热力图
 ```
 
 > 有 `make` 时可用 `make dev` / `make smoke ALG=three_sigma` / `make demo` 等简写。
+
+### TSB-UAD Optional 安装
+
+```bash
+pip install -e ".[dev,tsbuad]"
+# 解锁 5 个额外算法：IForest, LOF, OCSVM, PCA, HBOS
+make smoke-tsbuad
+```
 
 ## 5. 架构总览
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│                    NextAIOpsAlgoApp M0                       │
+│                    NextAIOpsAlgoApp M1                       │
 │                                                             │
 │  ┌─────────┐  ┌───────────┐  ┌───────────┐                │
-│  │  CLI    │  │ Streamlit │  │  (REST)   │  ← M1+          │
+│  │  CLI    │  │ Streamlit │  │  (REST)   │  ← M2+          │
 │  └────┬────┘  └─────┬─────┘  └───────────┘                  │
 │       └──────────────┼───────────────                       │
 │                      │                                      │
 │              ┌───────▼──────────┐                            │
 │              │    pipeline/     │  编排层                     │
-│              │  preprocess      │  CSV → Table + 切分         │
+│              │  preprocess      │  CSV/out/npy/npz → Table   │
 │              │  run             │  run_experiment 入口        │
-│              │  evaluate        │  precision / recall / F1   │
+│              │  batch           │  run_batch 批量引擎         │
+│              │  evaluate        │  precision/recall/F1/PA    │
 │              └───┬──────────┬───┘                            │
 │                  │          │                                │
 │       ┌──────────▼──┐  ┌───▼───────────┐                   │
 │       │ algorithms/ │  │    viz/       │                   │
 │       │  REGISTRY   │  │  timeseries   │                   │
-│       │ three_sigma │  │  Plotly HTML  │                   │
+│       │ three_sigma │  │  leaderboard  │                   │
+│       │ iqr         │  │  overlay      │                   │
+│       │ TSB-UAD*    │  │  heatmap      │                   │
 │       └──────┬──────┘  └───────────────┘                   │
 │              │                                              │
 │        ┌─────▼──────┐                                       │
 │        │   core/    │  稳定层（契约）                        │
 │        │  Table     │  Algorithm  │  Experiment             │
+│        │  BatchRun  │  BatchStatus           │              │
 │        └──────┬─────┘                                       │
 │               │                                             │
 │        ┌──────▼─────┐                                       │
 │        │  storage/  │  实现层（SQLite + FS）                │
 │        └────────────┘                                       │
 └─────────────────────────────────────────────────────────────┘
+
+* TSB-UAD 为 optional dependency，需 pip install -e ".[tsbuad]"
 ```
 
 **关键设计**：
@@ -122,16 +140,23 @@ streamlit run src/nextaiops_algo/ui/app.py
 - 算法 I/O 统一为 `Table`（DataFrame + Schema），平台前置 schema 校验
 - Pipeline 不感知具体算法，仅通过 REGISTRY 调用
 - CLI / UI / viz 不写业务逻辑，只调 pipeline 与查询 storage
+- 批量实验引擎顺序执行，单算法失败不阻断整个 batch
+- 三种可视化视图消费 BatchRun，不触碰算法实现
 
-详见 [docs/architecture/M0-skeleton.md](docs/architecture/M0-skeleton.md)（数据流、Table 贯穿、稳定/可变分离）。
+详见 [docs/architecture/M0-skeleton.md](docs/architecture/M0-skeleton.md)（数据流、Table 贯穿、稳定/可变分离）与 [docs/architecture/M1-batch.md](docs/architecture/M1-batch.md)（批量实验架构）。
 
 ## 6. 项目状态
 
-- **当前阶段**：M0（Walking Skeleton），见 [docs/PLAN.md](docs/PLAN.md)
-- **路线图**：
-  - **M0**：端到端最小闭环（3-Sigma + Streamlit demo）
-  - **M1**：算法生态扩展（IsolationForest / LSTM-AE）+ 数据集版本化 + 多实验对比
-  - **M2+**：MLflow 迁移、模型导出、AutoML 探索
+- **当前阶段**：M1（批量实验能力），见 [docs/PLAN.md](docs/PLAN.md)
+- **M0 已完成**：端到端最小闭环（3-Sigma + IQR + Streamlit demo + CLI）
+- **M1 已完成**：
+  - 评估指标扩充（PA-F1 / PA-Precision / PA-Recall）
+  - IQR 算法 + TSB-UAD 桥接层（5 算法 optional）
+  - 数据输入多样化（CSV / .out / npy / npz / 内置数据集）
+  - 批量实验引擎 + CLI batch/list-batches
+  - 可视化三件套（排行榜 / 时序叠加对比 / 热力图）
+  - Streamlit 批量实验页面
+- **M2+**：MLflow 迁移、模型导出、AutoML 探索
 
 ## 7. 开发者指南
 
