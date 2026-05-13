@@ -185,7 +185,12 @@ def run_experiment(
     for metric_name, metric_value in metrics.items():
         tracking_store.log_metric(run_id, metric_name, metric_value)
 
-    # Step 6: Save artifacts (viz.html)
+    # Step 6: Save artifacts (detect_output.csv + viz.html)
+    # Persist detect output for batch overlay visualization
+    detect_csv_path = Path(artifacts_path) / "detect_output.csv"
+    detect_csv_path.parent.mkdir(parents=True, exist_ok=True)
+    result_table.df.to_csv(detect_csv_path, index=False)
+
     # Import viz here to avoid circular import and handle missing plotly
     try:
         from nextaiops_algo.viz.timeseries import plot_timeseries
