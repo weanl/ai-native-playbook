@@ -1,4 +1,4 @@
-"""Streamlit UI for NextAIOpsAlgoApp — data upload, algorithm run, visualization."""
+"""Streamlit UI for NextAIOpsAlgoApp — data upload, algorithm run, batch experiment, visualization."""
 
 import json
 import tempfile
@@ -10,8 +10,9 @@ import streamlit.components.v1 as components
 
 from nextaiops_algo.algorithms.registry import list_algorithms
 from nextaiops_algo.core.exceptions import SchemaValidationError
-from nextaiops_algo.core.table import FieldRole
-from nextaiops_algo.pipeline.preprocess import read_csv_to_table
+from nextaiops_algo.core.table import FieldRole, Table
+from nextaiops_algo.datasets.registry import get_builtin, list_builtin
+from nextaiops_algo.pipeline.preprocess import read_csv_to_table, read_to_table
 from nextaiops_algo.pipeline.run import run_experiment
 from nextaiops_algo.storage.sqlite_tracking import SqliteTrackingStore
 
@@ -19,125 +20,288 @@ st.set_page_config(page_title="NextAIOpsAlgoApp", layout="wide")
 
 st.title("NextAIOpsAlgoApp — 智能运维算法平台")
 
-# ── 1. 上传数据 ──────────────────────────────────────────
-st.header("1. 上传数据")
-uploaded_file = st.file_uploader("上传指标数据 CSV", type=["csv"])
 
-upload_ok = False
-if uploaded_file is not None:
-    if (
-        "csv_path" not in st.session_state
-        or st.session_state.get("uploaded_name") != uploaded_file.name
-    ):
-        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
+# ── Helper functions (defined before use) ────────────────────
+
+
+def _get_input_table() -> tuple[bool, Table | None, str]:
+    """Common data source selector shared by single and batch pages.
+
+    Returns (upload_ok, table, source_description).
+    """
+    data_source = st.sidebar.selectbox(
+        "数据来源",
+        ["上传 CSV", "上传 .out", "上传 npy/npz"] + list_builtin(),
+    )
+
+    if data_source == "上传 CSV":
+        uploaded_file = st.file_uploader("上传指标数据 CSV", type=["csv"], key="csv_upload")
+        if uploaded_file is None:
+            return False, None, ""
+        if (
+            "csv_path" not in st.session_state
+            or st.session_state.get("uploaded_name") != uploaded_file.name
+        ):
+            with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
+                tmp.write(uploaded_file.getvalue())
+                csv_tmp_path = Path(tmp.name)
+            st.session_state["csv_path"] = csv_tmp_path
+            st.session_state["uploaded_name"] = uploaded_file.name
+
+        csv_path: Path = st.session_state["csv_path"]
+        try:
+            table = read_csv_to_table(csv_path)
+            return True, table, str(csv_path)
+        except SchemaValidationError as e:
+            st.error(f"数据格式校验失败：{e}")
+            return False, None, ""
+
+    elif data_source == "上传 .out":
+        uploaded_file = st.file_uploader("上传 TSB-UAD .out 文件", type=["out"], key="out_upload")
+        if uploaded_file is None:
+            return False, None, ""
+        with tempfile.NamedTemporaryFile(suffix=".out", delete=False) as tmp:
             tmp.write(uploaded_file.getvalue())
-            csv_tmp_path = Path(tmp.name)
-        st.session_state["csv_path"] = csv_tmp_path
-        st.session_state["uploaded_name"] = uploaded_file.name
+            out_path = Path(tmp.name)
+        try:
+            table = read_to_table(out_path)
+            return True, table, str(out_path)
+        except SchemaValidationError as e:
+            st.error(f"数据格式校验失败：{e}")
+            return False, None, ""
 
-    csv_path: Path = st.session_state["csv_path"]
+    elif data_source == "上传 npy/npz":
+        uploaded_file = st.file_uploader("上传 npy/npz 文件", type=["npy", "npz"], key="npy_upload")
+        if uploaded_file is None:
+            return False, None, ""
+        suffix = Path(uploaded_file.name).suffix
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(uploaded_file.getvalue())
+            array_path = Path(tmp.name)
+        try:
+            table = read_to_table(array_path)
+            return True, table, str(array_path)
+        except SchemaValidationError as e:
+            st.error(f"数据格式校验失败：{e}")
+            return False, None, ""
 
-    try:
-        table = read_csv_to_table(csv_path)
-        upload_ok = True
-    except SchemaValidationError as e:
-        st.error(f"数据格式校验失败：{e}")
+    else:
+        try:
+            table = get_builtin(data_source).load()
+            return True, table, data_source
+        except Exception as e:
+            st.error(f"加载内置数据集失败：{e}")
+            return False, None, ""
 
-    if upload_ok:
-        # Field inference mapping display
-        st.subheader("字段推断结果（列名 → 角色）")
-        mapping_df = pd.DataFrame(
-            [{"列名": col, "角色": role.value} for col, role in table.schema.roles.items()]
-        )
-        st.dataframe(mapping_df, use_container_width=True, hide_index=True)
 
-        metric_cols = table.schema.columns_of(FieldRole.METRIC)
-        if len(metric_cols) > 1:
-            st.info(f"检测到 {len(metric_cols)} 个 METRIC 列：{', '.join(metric_cols)}")
-        st.caption("如映射不正确，M1 将支持手动覆盖")
+def _render_single_experiment(upload_ok: bool, input_table: Table | None, data_source: str) -> None:
+    """Render single algorithm experiment page."""
+    if not upload_ok:
+        st.info("请先在侧边栏选择或上传数据")
+        return
 
-        with st.expander("数据预览"):
-            st.dataframe(table.df.head(10), use_container_width=True)
-
-# ── 2. 选算法 + 跑实验 ──────────────────────────────────
-if upload_ok:
-    st.header("2. 选算法 + 跑实验")
+    st.header("单算法实验")
 
     algo_names = list_algorithms()
     if not algo_names:
         st.warning("无可用算法")
-    else:
-        selected_algo = st.selectbox("选择算法", algo_names)
+        return
 
-        with st.expander("算法参数（JSON）"):
-            params_str = st.text_area("参数", value="{}")
+    selected_algo = st.selectbox("选择算法", algo_names)
 
-        if st.button("跑实验", type="primary"):
+    with st.expander("算法参数（JSON）"):
+        params_str = st.text_area("参数", value="{}")
+
+    if st.button("跑实验", type="primary"):
+        try:
+            params = json.loads(params_str)
+        except json.JSONDecodeError as e:
+            st.error(f"参数 JSON 格式错误：{e}")
+            return
+
+        with st.spinner("实验运行中..."):
             try:
-                params = json.loads(params_str)
-            except json.JSONDecodeError as e:
-                st.error(f"参数 JSON 格式错误：{e}")
+                result = run_experiment(
+                    dataset_path=data_source,
+                    algorithm_name=selected_algo,
+                    params=params,
+                )
+                st.session_state["last_result"] = result
+                st.success(f"实验完成! run_id={result.run_id}")
+            except SchemaValidationError as e:
+                st.error(f"Schema 校验失败：{e}")
+
+    if "last_result" in st.session_state:
+        result = st.session_state["last_result"]
+        st.subheader(f"最近实验 (run_id: {result.run_id})")
+
+        metrics_df = pd.DataFrame([{"指标": k, "值": round(v, 4)} for k, v in result.metrics.items()])
+        st.dataframe(metrics_df, use_container_width=True, hide_index=True)
+
+        viz_path = Path(result.artifacts_path) / "viz.html"
+        if viz_path.exists():
+            components.html(viz_path.read_text(), height=600, scrolling=True)
+        else:
+            st.warning("viz.html 未生成")
+
+
+def _render_batch_experiment(upload_ok: bool, input_table: Table | None, data_source: str) -> None:
+    """Render batch experiment page with leaderboard, overlay, heatmap tabs."""
+    if not upload_ok:
+        st.info("请先在侧边栏选择或上传数据")
+        return
+
+    st.header("批量实验")
+
+    from nextaiops_algo.algorithms.registry import REGISTRY
+    from nextaiops_algo.pipeline.batch import run_batch
+    from nextaiops_algo.viz.heatmap import render_heatmap
+    from nextaiops_algo.viz.leaderboard import render_leaderboard
+    from nextaiops_algo.viz.overlay import render_overlay
+
+    algo_names = sorted(REGISTRY.keys())
+    if not algo_names:
+        st.warning("无可用算法")
+        return
+
+    st.subheader("选择算法")
+    select_all = st.checkbox("全选", value=True)
+
+    selected_algos: list[str] = []
+    for algo in algo_names:
+        if st.checkbox(algo, value=select_all, key=f"batch_algo_{algo}"):
+            selected_algos.append(algo)
+
+    if not selected_algos:
+        st.warning("请至少选择一个算法")
+        return
+
+    tsbuad_algos = ["iforest", "lof", "ocsvm", "pca", "hbos"]
+    has_tsbuad = any(a in algo_names for a in tsbuad_algos)
+    if not has_tsbuad:
+        st.info("安装 `nextaiops-algo[tsbuad]` 可解锁更多算法 (IForest, LOF, OCSVM, PCA, HBOS)")
+
+    if st.button("开始批量实验", type="primary"):
+        with st.spinner(f"批量运行 {len(selected_algos)} 个算法..."):
+            try:
+                batch = run_batch(
+                    dataset=data_source,
+                    algorithms=selected_algos,
+                )
+                st.session_state["last_batch"] = batch
+                st.session_state["batch_input_table"] = input_table
+                st.success(f"批量实验完成! batch_id={batch.batch_id}, 状态={batch.status.value}")
+            except Exception as e:
+                st.error(f"批量实验失败：{e}")
+
+    if "last_batch" in st.session_state:
+        batch = st.session_state["last_batch"]
+        batch_input = st.session_state.get("batch_input_table")
+
+        tab1, tab2, tab3 = st.tabs(["排行榜", "时序叠加对比", "热力图"])
+
+        with tab1:
+            store = SqliteTrackingStore()
+            lb_df = render_leaderboard(batch, store=store)
+            st.dataframe(lb_df, use_container_width=True, hide_index=True)
+
+        with tab2:
+            if batch_input is not None:
+                fig = render_overlay(batch, batch_input)
+                st.plotly_chart(fig, use_container_width=True)
             else:
-                with st.spinner("实验运行中..."):
-                    try:
-                        result = run_experiment(
-                            dataset_path=st.session_state["csv_path"],
-                            algorithm_name=selected_algo,
-                            params=params,
-                        )
-                        st.session_state["last_result"] = result
-                        st.success(f"实验完成! run_id={result.run_id}")
-                    except SchemaValidationError as e:
-                        st.error(f"Schema 校验失败：{e}")
+                st.warning("原始数据不可用，无法渲染时序叠加")
 
-# ── 3. 看图 ──────────────────────────────────────────────
-if "last_result" in st.session_state:
-    st.header("3. 看图")
+        with tab3:
+            store = SqliteTrackingStore()
+            hm_fig = render_heatmap(batch, store=store)
+            st.plotly_chart(hm_fig, use_container_width=True)
 
-    result = st.session_state["last_result"]
-    st.subheader(f"最近实验 (run_id: {result.run_id})")
+    st.subheader("查看历史批量实验")
+    store = SqliteTrackingStore()
+    batches = store.list_batches(limit=20)
 
-    metrics_df = pd.DataFrame([{"指标": k, "值": round(v, 4)} for k, v in result.metrics.items()])
-    st.dataframe(metrics_df, use_container_width=True, hide_index=True)
+    if batches:
+        batch_options = {b.batch_id: f"{b.batch_id} — {b.dataset_source} ({b.status.value})" for b in batches}
+        selected_batch_id = st.selectbox(
+            "选择历史批量实验",
+            options=list(batch_options.keys()),
+            format_func=lambda bid: batch_options[bid],
+        )
+        selected_batch = next(b for b in batches if b.batch_id == selected_batch_id)
 
-    viz_path = Path(result.artifacts_path) / "viz.html"
-    if viz_path.exists():
-        components.html(viz_path.read_text(), height=600, scrolling=True)
+        tab1, tab2, tab3 = st.tabs(["排行榜", "时序叠加对比", "热力图"])
+
+        with tab1:
+            lb_df = render_leaderboard(selected_batch, store=store)
+            st.dataframe(lb_df, use_container_width=True, hide_index=True)
+
+        with tab3:
+            hm_fig = render_heatmap(selected_batch, store=store)
+            st.plotly_chart(hm_fig, use_container_width=True)
     else:
-        st.warning("viz.html 未生成")
+        st.info("暂无历史批量实验记录")
 
-# ── 历史实验记录 ──────────────────────────────────────────
-st.header("历史实验记录")
 
-store = SqliteTrackingStore()
-runs = store.list_runs(limit=20)
+def _render_history() -> None:
+    """Render history page for single experiment runs."""
+    st.header("历史实验记录")
 
-if runs:
-    history_data = []
-    for run in runs:
-        metrics = store.get_metrics(run.run_id)
-        history_data.append(
-            {
+    store = SqliteTrackingStore()
+    runs = store.list_runs(limit=20)
+
+    if runs:
+        history_data = []
+        for run in runs:
+            metrics = store.get_metrics(run.run_id)
+            history_data.append({
                 "run_id": run.run_id,
                 "算法": run.algorithm_name,
                 "数据集": run.dataset_version,
                 "F1": round(metrics.get("f1", 0.0), 4),
-                "Precision": round(metrics.get("precision", 0.0), 4),
-                "Recall": round(metrics.get("recall", 0.0), 4),
+                "PA-F1": round(metrics.get("pa_f1", 0.0), 4),
                 "时间": run.created_at.strftime("%Y-%m-%d %H:%M"),
-            }
-        )
-    st.dataframe(pd.DataFrame(history_data), use_container_width=True, hide_index=True)
+            })
+        st.dataframe(pd.DataFrame(history_data), use_container_width=True, hide_index=True)
 
-    run_label_map = {r.run_id: f"{r.run_id} — {r.algorithm_name}" for r in runs}
-    selected_run_id = st.selectbox(
-        "查看历史实验可视化",
-        options=list(run_label_map.keys()),
-        format_func=lambda rid: run_label_map[rid],
+        run_label_map = {r.run_id: f"{r.run_id} — {r.algorithm_name}" for r in runs}
+        selected_run_id = st.selectbox(
+            "查看历史实验可视化",
+            options=list(run_label_map.keys()),
+            format_func=lambda rid: run_label_map[rid],
+        )
+        selected_run = next(r for r in runs if r.run_id == selected_run_id)
+        viz_path = Path(selected_run.artifacts_path) / "viz.html"
+        if viz_path.exists():
+            components.html(viz_path.read_text(), height=600, scrolling=True)
+    else:
+        st.info("暂无历史实验记录")
+
+
+# ── Sidebar: page selection ─────────────────────────────────
+page = st.sidebar.radio("功能页面", ["单算法实验", "批量实验", "历史记录"])
+
+# ── Shared: data source ─────────────────────────────────────
+upload_ok, input_table, data_source_desc = _get_input_table()
+
+if upload_ok and input_table is not None:
+    st.subheader("字段推断结果（列名 → 角色）")
+    mapping_df = pd.DataFrame(
+        [{"列名": col, "角色": role.value} for col, role in input_table.schema.roles.items()]
     )
-    selected_run = next(r for r in runs if r.run_id == selected_run_id)
-    viz_path = Path(selected_run.artifacts_path) / "viz.html"
-    if viz_path.exists():
-        components.html(viz_path.read_text(), height=600, scrolling=True)
-else:
-    st.info("暂无历史实验记录")
+    st.dataframe(mapping_df, use_container_width=True, hide_index=True)
+
+    metric_cols = input_table.schema.columns_of(FieldRole.METRIC)
+    if len(metric_cols) > 1:
+        st.info(f"检测到 {len(metric_cols)} 个 METRIC 列：{', '.join(metric_cols)}")
+
+    with st.expander("数据预览"):
+        st.dataframe(input_table.df.head(10), use_container_width=True)
+
+# ── Page routing ────────────────────────────────────────────
+if page == "单算法实验":
+    _render_single_experiment(upload_ok, input_table, data_source_desc)
+elif page == "批量实验":
+    _render_batch_experiment(upload_ok, input_table, data_source_desc)
+elif page == "历史记录":
+    _render_history()
