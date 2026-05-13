@@ -49,7 +49,9 @@ def render_data_preview(table: Table, metric_name: str | None = None) -> go.Figu
             mode="lines",
             name=selected_metric,
             line={"color": "#2563eb", "width": 2},
-            hovertemplate=(f"x=%{{x}}<br>{selected_metric}=%{{y}}<extra>{selected_metric}</extra>"),
+            hovertemplate=(
+                f"x=%{{x}}<br>{selected_metric}=%{{y:.4g}}<extra>{selected_metric}</extra>"
+            ),
         )
     )
 
@@ -70,7 +72,7 @@ def render_data_preview(table: Table, metric_name: str | None = None) -> go.Figu
                     customdata=label_values[anomaly_mask],
                     hovertemplate=(
                         "x=%{x}<br>"
-                        f"{selected_metric}=%{{y}}<br>"
+                        f"{selected_metric}=%{{y:.4g}}<br>"
                         "label=%{customdata}<extra>Ground Truth</extra>"
                     ),
                 )
@@ -81,10 +83,13 @@ def render_data_preview(table: Table, metric_name: str | None = None) -> go.Figu
         height=420,
         margin={"l": 40, "r": 24, "t": 56, "b": 40},
         hovermode="x unified",
+        template="plotly_white",
+        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#ffffff",
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
     )
-    fig.update_xaxes(title_text="Timestamp" if timestamps is not None else "Index")
-    fig.update_yaxes(title_text=selected_metric)
+    fig.update_xaxes(title_text="Timestamp" if timestamps is not None else "Index", showspikes=True)
+    fig.update_yaxes(title_text=selected_metric, gridcolor="#e2e8f0")
 
     return fig
 

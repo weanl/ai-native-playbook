@@ -199,31 +199,39 @@ def _render_data_preview(table: Table) -> None:
     st.subheader("数据预览")
     _render_profile_summary(profile)
 
-    mapping_df = pd.DataFrame(
-        [
-            {
-                "列名": column.name,
-                "角色": column.role.value,
-                "dtype": column.dtype,
-                "缺失数": column.missing_count,
-                "缺失率": f"{column.missing_rate:.2%}",
-                "唯一值": column.unique_count,
-            }
-            for column in profile.columns
-        ]
-    )
-    st.dataframe(mapping_df, use_container_width=True, hide_index=True)
+    chart_tab, schema_tab, sample_tab = st.tabs(["指标曲线", "字段质量", "数据样例"])
 
-    metric_options = list(profile.metric_columns)
-    selected_metric = st.selectbox(
-        "预览指标",
-        options=metric_options,
-        key="preview_metric",
-    )
-    preview_fig = render_data_preview(table, metric_name=selected_metric)
-    st.plotly_chart(preview_fig, use_container_width=True)
+    with chart_tab:
+        metric_options = list(profile.metric_columns)
+        selected_metric = st.selectbox(
+            "预览指标",
+            options=metric_options,
+            key="preview_metric",
+        )
+        preview_fig = render_data_preview(table, metric_name=selected_metric)
+        st.plotly_chart(
+            preview_fig,
+            use_container_width=True,
+            config=_plotly_config(),
+        )
 
-    with st.expander("原始数据样例"):
+    with schema_tab:
+        mapping_df = pd.DataFrame(
+            [
+                {
+                    "列名": column.name,
+                    "角色": column.role.value,
+                    "dtype": column.dtype,
+                    "缺失数": column.missing_count,
+                    "缺失率": f"{column.missing_rate:.2%}",
+                    "唯一值": column.unique_count,
+                }
+                for column in profile.columns
+            ]
+        )
+        st.dataframe(mapping_df, use_container_width=True, hide_index=True)
+
+    with sample_tab:
         st.dataframe(table.df.head(20), use_container_width=True)
 
 
@@ -293,6 +301,15 @@ def _metric_explanations() -> list[tuple[str, str, str]]:
     ]
 
 
+def _plotly_config() -> dict[str, object]:
+    """Return shared Plotly interaction config."""
+    return {
+        "displaylogo": False,
+        "scrollZoom": True,
+        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+    }
+
+
 def _render_single_experiment(upload_ok: bool, input_table: Table | None, data_source: str) -> None:
     """Render single algorithm experiment page."""
     if not upload_ok:
@@ -306,35 +323,43 @@ def _render_single_experiment(upload_ok: bool, input_table: Table | None, data_s
         st.warning("无可用算法")
         return
 
-    selected_algo = st.selectbox("选择算法", algo_names)
-    params = _render_param_form(selected_algo)
-    if params is None:
-        return
+    config_col, result_col = st.columns([0.32, 0.68], gap="large")
 
-    if st.button("跑实验", type="primary"):
-        with st.spinner("实验运行中..."):
-            try:
-                result = run_experiment(
-                    dataset_path=data_source,
-                    algorithm_name=selected_algo,
-                    params=params,
-                )
-                st.session_state["last_result"] = result
-                st.success(f"实验完成! run_id={result.run_id}")
-            except SchemaValidationError as e:
-                st.error(f"Schema 校验失败：{e}")
+    with config_col:
+        st.subheader("实验配置")
+        selected_algo = st.selectbox("选择算法", algo_names)
+        params = _render_param_form(selected_algo)
+        if params is None:
+            return
 
-    if "last_result" in st.session_state:
-        result = st.session_state["last_result"]
-        st.subheader(f"最近实验 (run_id: {result.run_id})")
+        if st.button("跑实验", type="primary", use_container_width=True):
+            with st.spinner("实验运行中..."):
+                try:
+                    result = run_experiment(
+                        dataset_path=data_source,
+                        algorithm_name=selected_algo,
+                        params=params,
+                    )
+                    st.session_state["last_result"] = result
+                    st.success(f"实验完成! run_id={result.run_id}")
+                except SchemaValidationError as e:
+                    st.error(f"Schema 校验失败：{e}")
 
-        _render_single_result(result.artifacts_path, result.metrics)
+    with result_col:
+        st.subheader("实验结果")
+        if "last_result" in st.session_state:
+            result = st.session_state["last_result"]
+            st.caption(f"run_id: {result.run_id}")
 
-        viz_path = Path(result.artifacts_path) / "viz.html"
-        if viz_path.exists():
-            components.html(viz_path.read_text(), height=600, scrolling=True)
+            _render_single_result(result.artifacts_path, result.metrics)
+
+            viz_path = Path(result.artifacts_path) / "viz.html"
+            if viz_path.exists():
+                components.html(viz_path.read_text(), height=720, scrolling=True)
+            else:
+                st.warning("viz.html 未生成")
         else:
-            st.warning("viz.html 未生成")
+            st.info("运行实验后将在这里展示检测摘要、指标解释和结果曲线。")
 
 
 def _render_batch_experiment(upload_ok: bool, input_table: Table | None, data_source: str) -> None:

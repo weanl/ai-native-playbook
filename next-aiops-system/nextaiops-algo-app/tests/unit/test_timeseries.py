@@ -144,6 +144,14 @@ class TestPlotTimeseries:
         assert "FN" in html
         assert "class=TP" in html
 
+    def test_interactive_layout_options_present(self) -> None:
+        """Timeseries HTML includes unified hover and polished background."""
+        table = _make_output_table(10)
+        html = plot_timeseries(table)
+
+        assert "x unified" in html
+        assert "#f8fafc" in html
+
     def test_file_size_greater_than_zero(self) -> None:
         """Test that saved file has positive size."""
         table = _make_output_table(10)

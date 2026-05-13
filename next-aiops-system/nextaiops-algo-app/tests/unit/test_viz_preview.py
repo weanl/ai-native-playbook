@@ -68,6 +68,14 @@ def test_render_data_preview_adds_anomaly_bands() -> None:
     assert len(fig.layout.shapes) == 1
 
 
+def test_render_data_preview_uses_interactive_layout() -> None:
+    """Preview chart enables hover and a clean plot background."""
+    fig = render_data_preview(_make_table())
+
+    assert fig.layout.hovermode == "x unified"
+    assert fig.layout.plot_bgcolor == "#f8fafc"
+
+
 def test_render_data_preview_rejects_unknown_metric() -> None:
     """Unknown metric names fail fast."""
     with pytest.raises(ValueError, match="Unknown metric column"):
