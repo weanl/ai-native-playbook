@@ -56,11 +56,21 @@ class MockTSBUADModel:
     def __init__(self, **kwargs: object) -> None:
         self.decision_scores_: np.ndarray | None = None
         self._kwargs = kwargs
+        # Mock sklearn detector for scoring_method tests
+        self.detector_ = MockSklearnDetector()
 
     def fit(self, X: np.ndarray) -> None:
         # Return random scores of length matching X
         n = len(X)
         self.decision_scores_ = np.random.rand(n).astype(float)
+
+
+class MockSklearnDetector:
+    """Mock sklearn detector with decision_function for test scoring."""
+
+    def decision_function(self, X: np.ndarray) -> np.ndarray:
+        """Return mock anomaly scores (negated for consistency)."""
+        return np.random.rand(len(X)).astype(float)
 
 
 MOCK_CONFIG = TSBUADAlgoConfig(
@@ -69,6 +79,7 @@ MOCK_CONFIG = TSBUADAlgoConfig(
     default_params={},
     threshold_method="sigma",
     threshold_params={"n_sigma": 3},
+    scoring_method="detector_decision_function",
 )
 
 
@@ -76,20 +87,24 @@ class TestAlignScores:
     """Tests for score alignment from window-level to point-level."""
 
     def test_align_basic(self) -> None:
-        """Scores aligned to original length with window padding."""
+        """Scores aligned to original length with center-of-window strategy."""
         scores = np.array([1.0, 2.0, 3.0, 4.0])
         original_length = 7
         window = 4
         result = _align_scores(scores, original_length, window)
         assert len(result) == original_length
-        # First 3 positions padded with first score (1.0)
-        assert result[0] == 1.0
-        assert result[1] == 1.0
-        assert result[2] == 1.0
-        # Position 3 = score[0] = 1.0
-        assert result[3] == 1.0
-        # Position 4 = score[1] = 2.0
-        assert result[4] == 2.0
+        # Center alignment: center_offset = 4//2 = 2
+        # score[0] placed at pos 0+2=2, score[1] at 1+2=3, etc.
+        # First 2 positions padded with score[0] (1.0)
+        assert result[0] == 1.0  # padded with first score
+        assert result[1] == 1.0  # padded with first score
+        # Center positions: score[0] at pos 2, score[1] at pos 3
+        assert result[2] == 1.0  # score[0] at center pos
+        assert result[3] == 2.0  # score[1] at center pos
+        # Remaining: score[2] at pos 4, score[3] at pos 5, then pad with last
+        assert result[4] == 3.0  # score[2] at center pos
+        assert result[5] == 4.0  # score[3] at center pos
+        assert result[6] == 4.0  # trailing pad with last score
 
     def test_align_window_equals_length(self) -> None:
         """When window == 1, scores directly map to points."""
