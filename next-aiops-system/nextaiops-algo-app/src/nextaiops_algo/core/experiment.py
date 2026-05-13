@@ -1,4 +1,4 @@
-"""Experiment run data models."""
+"""Experiment run and batch run data models."""
 
 from datetime import datetime
 from enum import StrEnum
@@ -12,6 +12,16 @@ class RunStatus(StrEnum):
 
     RUNNING = "running"
     COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class BatchStatus(StrEnum):
+    """Status of a batch experiment run."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    PARTIAL_FAILED = "partial_failed"
     FAILED = "failed"
 
 
@@ -49,3 +59,23 @@ class RunResult(BaseModel):
     run_id: str
     metrics: dict[str, float]
     artifacts_path: str
+
+
+class BatchRun(BaseModel):
+    """Record of a batch experiment (multiple algorithms × single dataset).
+
+    Attributes:
+        batch_id: Unique identifier for the batch.
+        dataset_source: Path or name of the input dataset.
+        algorithm_names: List of algorithm names included in the batch.
+        created_at: Timestamp when the batch was created.
+        runs: List of ExperimentRun records for each algorithm in the batch.
+        status: Overall status of the batch.
+    """
+
+    batch_id: str
+    dataset_source: str
+    algorithm_names: list[str]
+    created_at: datetime
+    runs: list[ExperimentRun]
+    status: BatchStatus
