@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+DEFAULT_RANDOM_STATE = 42
+
 
 @dataclass
 class TSBUADAlgoConfig:
@@ -36,7 +38,7 @@ TSBUAD_ALGO_CONFIGS: dict[str, TSBUADAlgoConfig] = {
     "iforest": TSBUADAlgoConfig(
         name="iforest",
         algo_class_path="TSB_UAD.models.iforest.IForest",
-        default_params={},
+        default_params={"random_state": DEFAULT_RANDOM_STATE},
         threshold_method="percentile",
         threshold_params={"percentile": 95},
         scoring_method="detector_decision_function",

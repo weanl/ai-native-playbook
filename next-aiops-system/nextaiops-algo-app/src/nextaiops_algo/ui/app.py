@@ -15,8 +15,10 @@ from nextaiops_algo.core.exceptions import SchemaValidationError
 from nextaiops_algo.core.table import FieldRole, Table
 from nextaiops_algo.datasets.registry import get_builtin, list_builtin
 from nextaiops_algo.pipeline.preprocess import read_csv_to_table, read_to_table
+from nextaiops_algo.pipeline.profile import TableProfile, profile_table
 from nextaiops_algo.pipeline.run import run_experiment
 from nextaiops_algo.storage.sqlite_tracking import SqliteTrackingStore
+from nextaiops_algo.viz.preview import render_data_preview
 
 st.set_page_config(page_title="NextAIOpsAlgoApp", layout="wide")
 
@@ -188,6 +190,60 @@ def _default_int(value: object) -> int:
     if isinstance(value, (str, int, float)):
         return int(value)
     raise ValueError(f"Unsupported int default: {value!r}")
+
+
+def _render_data_preview(table: Table) -> None:
+    """Render schema, quality, and curve preview for a table."""
+    profile = profile_table(table)
+
+    st.subheader("数据预览")
+    _render_profile_summary(profile)
+
+    mapping_df = pd.DataFrame(
+        [
+            {
+                "列名": column.name,
+                "角色": column.role.value,
+                "dtype": column.dtype,
+                "缺失数": column.missing_count,
+                "缺失率": f"{column.missing_rate:.2%}",
+                "唯一值": column.unique_count,
+            }
+            for column in profile.columns
+        ]
+    )
+    st.dataframe(mapping_df, use_container_width=True, hide_index=True)
+
+    metric_options = list(profile.metric_columns)
+    selected_metric = st.selectbox(
+        "预览指标",
+        options=metric_options,
+        key="preview_metric",
+    )
+    preview_fig = render_data_preview(table, metric_name=selected_metric)
+    st.plotly_chart(preview_fig, use_container_width=True)
+
+    with st.expander("原始数据样例"):
+        st.dataframe(table.df.head(20), use_container_width=True)
+
+
+def _render_profile_summary(profile: TableProfile) -> None:
+    """Render compact data profile metrics."""
+    summary_cols = st.columns(4)
+    summary_cols[0].metric("行数", profile.row_count)
+    summary_cols[1].metric("列数", profile.column_count)
+    summary_cols[2].metric("指标列", len(profile.metric_columns))
+    summary_cols[3].metric("标签列", profile.label_column or "无")
+
+    if profile.label is None:
+        st.info("当前数据没有真实异常标签，运行后无法计算监督评估指标。")
+        return
+
+    label_cols = st.columns(4)
+    label_cols[0].metric("真实异常点", profile.label.true_anomalies)
+    label_cols[1].metric("异常比例", f"{profile.label.anomaly_rate:.2%}")
+    label_cols[2].metric("异常段数", profile.label.segment_count)
+    label_cols[3].metric("最长异常段", profile.label.longest_segment)
 
 
 def _render_single_experiment(upload_ok: bool, input_table: Table | None, data_source: str) -> None:
@@ -381,18 +437,11 @@ page = st.sidebar.radio("功能页面", ["单算法实验", "批量实验", "历
 upload_ok, input_table, data_source_desc = _get_input_table()
 
 if upload_ok and input_table is not None:
-    st.subheader("字段推断结果（列名 → 角色）")
-    mapping_df = pd.DataFrame(
-        [{"列名": col, "角色": role.value} for col, role in input_table.schema.roles.items()]
-    )
-    st.dataframe(mapping_df, use_container_width=True, hide_index=True)
-
     metric_cols = input_table.schema.columns_of(FieldRole.METRIC)
     if len(metric_cols) > 1:
         st.info(f"检测到 {len(metric_cols)} 个 METRIC 列：{', '.join(metric_cols)}")
 
-    with st.expander("数据预览"):
-        st.dataframe(input_table.df.head(10), use_container_width=True)
+    _render_data_preview(input_table)
 
 # ── Page routing ────────────────────────────────────────────
 if page == "单算法实验":
