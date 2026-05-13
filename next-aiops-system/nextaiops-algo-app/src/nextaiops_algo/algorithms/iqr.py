@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from nextaiops_algo.algorithms.base import AnomalyDetector
+from nextaiops_algo.algorithms.params import AlgorithmParamSpec
 from nextaiops_algo.algorithms.registry import register
 from nextaiops_algo.core.algorithm import TaskType
 from nextaiops_algo.core.table import FieldRole, Table, TableSchema
@@ -36,6 +37,18 @@ class IQR(AnomalyDetector):
     name: ClassVar[str] = "iqr"
     task_type: ClassVar[TaskType] = TaskType.ANOMALY_DETECTION
     required_input_roles: ClassVar[set[FieldRole]] = {FieldRole.METRIC}
+    param_specs: ClassVar[tuple[AlgorithmParamSpec, ...]] = (
+        AlgorithmParamSpec(
+            name="k",
+            type="float",
+            default=1.5,
+            description=(
+                "IQR multiplier used to build lower and upper thresholds. Smaller "
+                "values are more sensitive; larger values are more conservative."
+            ),
+            min_value=0.1,
+        ),
+    )
 
     def __init__(self, k: float = 1.5) -> None:
         """Initialize IQR detector.
@@ -107,10 +120,7 @@ class IQR(AnomalyDetector):
             anomaly_score = np.where(anomaly_score < 0, 0.0, anomaly_score)
             anomaly_score = pd.Series(anomaly_score).fillna(0.0)
 
-            is_anomaly = (
-                (metrics_df[col] > threshold_upper)
-                | (metrics_df[col] < threshold_lower)
-            )
+            is_anomaly = (metrics_df[col] > threshold_upper) | (metrics_df[col] < threshold_lower)
             per_metric_labels[col] = is_anomaly.astype(int)
 
             output_df[f"{col}.anomaly_score"] = anomaly_score.values

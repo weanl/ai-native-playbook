@@ -65,10 +65,12 @@ class TestIQRFit:
 
     def test_multi_metric_stats(self) -> None:
         """fit() computes stats for each METRIC column independently."""
-        table = _make_table({
-            "cpu": [10.0, 20.0, 30.0, 40.0, 50.0],
-            "mem": [1.0, 2.0, 3.0, 4.0, 5.0],
-        })
+        table = _make_table(
+            {
+                "cpu": [10.0, 20.0, 30.0, 40.0, 50.0],
+                "mem": [1.0, 2.0, 3.0, 4.0, 5.0],
+            }
+        )
         algo = IQR()
         algo.fit(table)
 
@@ -109,10 +111,12 @@ class TestIQRDetect:
 
     def test_multi_metric_output_columns(self) -> None:
         """detect() output has required columns for each metric + predicted_label."""
-        table = _make_table({
-            "cpu": [10.0, 20.0, 30.0, 40.0, 50.0, 100.0],
-            "mem": [1.0, 2.0, 3.0, 4.0, 5.0, 50.0],
-        })
+        table = _make_table(
+            {
+                "cpu": [10.0, 20.0, 30.0, 40.0, 50.0, 100.0],
+                "mem": [1.0, 2.0, 3.0, 4.0, 5.0, 50.0],
+            }
+        )
         algo = IQR()
         algo.fit(table)
         result = algo.detect(table)
@@ -184,10 +188,12 @@ class TestIQRDetect:
     def test_or_merge_multi_metric(self) -> None:
         """predicted_label uses OR-merge across metrics."""
         # cpu has outlier at index 5, mem is normal
-        table = _make_table({
-            "cpu": [10.0, 20.0, 30.0, 40.0, 50.0, 200.0],
-            "mem": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
-        })
+        table = _make_table(
+            {
+                "cpu": [10.0, 20.0, 30.0, 40.0, 50.0, 200.0],
+                "mem": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            }
+        )
         algo = IQR()
         algo.fit(table)
         result = algo.detect(table)
@@ -233,6 +239,11 @@ class TestIQRThresholds:
         """Default k=1.5."""
         algo = IQR()
         assert algo._k == 1.5
+
+    def test_param_specs_declare_k(self) -> None:
+        """IQR declares k parameter metadata."""
+        assert IQR.param_specs[0].name == "k"
+        assert IQR.param_specs[0].default == 1.5
 
 
 class TestIQRIQRZeroDegradation:

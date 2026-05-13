@@ -142,6 +142,34 @@ class TestRunExperiment:
 
         csv_path.unlink()
 
+    def test_params_are_normalized_persisted_and_labeled(self) -> None:
+        """run_experiment uses params for construction and persists normalized params."""
+        csv_path = _create_test_csv(
+            n_rows=100,
+            with_labels=True,
+            anomaly_indices=[80, 81, 82],
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = run_experiment(
+                dataset_path=csv_path,
+                algorithm_name="three_sigma",
+                params={"k": "2"},
+                output_dir=Path(tmpdir),
+                split_ratio=0.7,
+            )
+
+            tracking_store = SqliteTrackingStore()
+            run_record = tracking_store.get_run(result.run_id)
+
+            assert run_record is not None
+            assert run_record.params == {"k": 2.0}
+
+            label_path = Path(result.artifacts_path) / "experiment_label.txt"
+            assert label_path.read_text() == "three_sigma[k=2.0]"
+
+        csv_path.unlink()
+
     def test_reproducibility(self) -> None:
         """Test that same input produces same metrics."""
         csv_path = _create_test_csv(

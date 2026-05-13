@@ -13,15 +13,19 @@ class TestThreeSigma:
     def test_single_metric_output_columns(self) -> None:
         """Test single metric input produces required output columns."""
         # Create simple metric data
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=100),
-            "value": np.random.randn(100) * 10 + 50,
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=100),
+                "value": np.random.randn(100) * 10 + 50,
+            }
+        )
 
-        schema = TableSchema(roles={
-            "timestamp": FieldRole.TIMESTAMP,
-            "value": FieldRole.METRIC,
-        })
+        schema = TableSchema(
+            roles={
+                "timestamp": FieldRole.TIMESTAMP,
+                "value": FieldRole.METRIC,
+            }
+        )
         table = Table(df=df, schema=schema)
 
         algo = ThreeSigma()
@@ -44,17 +48,21 @@ class TestThreeSigma:
 
     def test_multi_metric_output_columns(self) -> None:
         """Test multi metric input produces columns for each metric."""
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=100),
-            "metric1": np.random.randn(100) * 10 + 50,
-            "metric2": np.random.randn(100) * 5 + 100,
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=100),
+                "metric1": np.random.randn(100) * 10 + 50,
+                "metric2": np.random.randn(100) * 5 + 100,
+            }
+        )
 
-        schema = TableSchema(roles={
-            "timestamp": FieldRole.TIMESTAMP,
-            "metric1": FieldRole.METRIC,
-            "metric2": FieldRole.METRIC,
-        })
+        schema = TableSchema(
+            roles={
+                "timestamp": FieldRole.TIMESTAMP,
+                "metric1": FieldRole.METRIC,
+                "metric2": FieldRole.METRIC,
+            }
+        )
         table = Table(df=df, schema=schema)
 
         algo = ThreeSigma()
@@ -79,9 +87,11 @@ class TestThreeSigma:
 
     def test_output_row_count_matches_input(self) -> None:
         """Test output has same row count as input."""
-        df = pd.DataFrame({
-            "value": np.random.randn(50) * 10 + 50,
-        })
+        df = pd.DataFrame(
+            {
+                "value": np.random.randn(50) * 10 + 50,
+            }
+        )
 
         schema = TableSchema(roles={"value": FieldRole.METRIC})
         table = Table(df=df, schema=schema)
@@ -95,15 +105,19 @@ class TestThreeSigma:
     def test_timestamp_copied_row_by_row(self) -> None:
         """Test timestamp is copied exactly when present."""
         timestamps = pd.date_range("2024-01-01", periods=100)
-        df = pd.DataFrame({
-            "timestamp": timestamps,
-            "value": np.random.randn(100) * 10 + 50,
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "value": np.random.randn(100) * 10 + 50,
+            }
+        )
 
-        schema = TableSchema(roles={
-            "timestamp": FieldRole.TIMESTAMP,
-            "value": FieldRole.METRIC,
-        })
+        schema = TableSchema(
+            roles={
+                "timestamp": FieldRole.TIMESTAMP,
+                "value": FieldRole.METRIC,
+            }
+        )
         table = Table(df=df, schema=schema)
 
         algo = ThreeSigma()
@@ -116,9 +130,11 @@ class TestThreeSigma:
 
     def test_no_timestamp_when_input_missing(self) -> None:
         """Test output has no timestamp when input lacks it."""
-        df = pd.DataFrame({
-            "value": np.random.randn(100) * 10 + 50,
-        })
+        df = pd.DataFrame(
+            {
+                "value": np.random.randn(100) * 10 + 50,
+            }
+        )
 
         schema = TableSchema(roles={"value": FieldRole.METRIC})
         table = Table(df=df, schema=schema)
@@ -142,15 +158,19 @@ class TestThreeSigma:
         # metric2: all normal
         values2 = np.random.randn(100) * std2 + mean2
 
-        df = pd.DataFrame({
-            "metric1": values1,
-            "metric2": values2,
-        })
+        df = pd.DataFrame(
+            {
+                "metric1": values1,
+                "metric2": values2,
+            }
+        )
 
-        schema = TableSchema(roles={
-            "metric1": FieldRole.METRIC,
-            "metric2": FieldRole.METRIC,
-        })
+        schema = TableSchema(
+            roles={
+                "metric1": FieldRole.METRIC,
+                "metric2": FieldRole.METRIC,
+            }
+        )
         table = Table(df=df, schema=schema)
 
         algo = ThreeSigma()
@@ -173,15 +193,19 @@ class TestThreeSigma:
         values = np.concatenate([normal_values, anomaly_values])
         labels = np.array([0] * 90 + [1] * 10)
 
-        df = pd.DataFrame({
-            "value": values,
-            "is_anomaly": labels,
-        })
+        df = pd.DataFrame(
+            {
+                "value": values,
+                "is_anomaly": labels,
+            }
+        )
 
-        schema = TableSchema(roles={
-            "value": FieldRole.METRIC,
-            "is_anomaly": FieldRole.LABEL,
-        })
+        schema = TableSchema(
+            roles={
+                "value": FieldRole.METRIC,
+                "is_anomaly": FieldRole.LABEL,
+            }
+        )
         table = Table(df=df, schema=schema)
 
         algo = ThreeSigma()
@@ -208,3 +232,31 @@ class TestThreeSigma:
 
         # Import triggers registration via @register decorator
         assert "three_sigma" in REGISTRY
+
+    def test_param_specs_declare_k(self) -> None:
+        """ThreeSigma declares k parameter metadata."""
+        assert ThreeSigma.param_specs[0].name == "k"
+        assert ThreeSigma.param_specs[0].default == 3.0
+
+    def test_custom_k_changes_threshold_sensitivity(self) -> None:
+        """Smaller k makes threshold bounds more sensitive."""
+        train_df = pd.DataFrame({"value": list(range(10))})
+        train = Table(
+            df=train_df,
+            schema=TableSchema(roles={"value": FieldRole.METRIC}),
+        )
+        test = Table(
+            df=pd.DataFrame({"value": [11.0]}),
+            schema=TableSchema(roles={"value": FieldRole.METRIC}),
+        )
+
+        sensitive = ThreeSigma(k=2.0)
+        sensitive.fit(train)
+        sensitive_result = sensitive.detect(test)
+
+        conservative = ThreeSigma(k=3.0)
+        conservative.fit(train)
+        conservative_result = conservative.detect(test)
+
+        assert sensitive_result.df["predicted_label"].iloc[0] == 1
+        assert conservative_result.df["predicted_label"].iloc[0] == 0

@@ -3,12 +3,14 @@
 import json
 import tempfile
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-from nextaiops_algo.algorithms.registry import list_algorithms
+from nextaiops_algo.algorithms.params import AlgorithmParamSpec, format_experiment_label
+from nextaiops_algo.algorithms.registry import get_algorithm_param_specs, list_algorithms
 from nextaiops_algo.core.exceptions import SchemaValidationError
 from nextaiops_algo.core.table import FieldRole, Table
 from nextaiops_algo.datasets.registry import get_builtin, list_builtin
@@ -94,6 +96,100 @@ def _get_input_table() -> tuple[bool, Table | None, str]:
             return False, None, ""
 
 
+def _render_param_form(algorithm_name: str) -> dict[str, object] | None:
+    """Render algorithm parameter controls and return params."""
+    specs = get_algorithm_param_specs(algorithm_name)
+    if not specs:
+        with st.expander("算法参数（JSON）"):
+            params_str = st.text_area("参数", value="{}", key=f"params_json_{algorithm_name}")
+        try:
+            parsed_params = json.loads(params_str)
+        except json.JSONDecodeError as e:
+            st.error(f"参数 JSON 格式错误：{e}")
+            return None
+        if not isinstance(parsed_params, dict):
+            st.error("参数 JSON 必须是对象")
+            return None
+        return cast(dict[str, object], parsed_params)
+
+    st.subheader("算法参数")
+    params: dict[str, object] = {}
+    for spec in specs:
+        params[spec.name] = _render_param_control(algorithm_name, spec)
+
+    identity_params = {
+        spec.name: params[spec.name]
+        for spec in specs
+        if spec.affects_run_identity and spec.name in params
+    }
+    st.caption(f"实验标识：{format_experiment_label(algorithm_name, identity_params)}")
+    return params
+
+
+def _render_param_control(algorithm_name: str, spec: AlgorithmParamSpec) -> object:
+    """Render a single parameter control from metadata."""
+    key = f"param_{algorithm_name}_{spec.name}"
+    label = f"{spec.name}（默认 {spec.default}）"
+
+    if spec.type == "float":
+        default = _default_float(spec.default)
+        return float(
+            st.number_input(
+                label,
+                value=default,
+                min_value=spec.min_value,
+                max_value=spec.max_value,
+                help=spec.description,
+                key=key,
+            )
+        )
+    if spec.type == "int":
+        min_value = int(spec.min_value) if spec.min_value is not None else None
+        max_value = int(spec.max_value) if spec.max_value is not None else None
+        default = _default_int(spec.default)
+        return int(
+            st.number_input(
+                label,
+                value=default,
+                min_value=min_value,
+                max_value=max_value,
+                step=1,
+                help=spec.description,
+                key=key,
+            )
+        )
+    if spec.type == "bool":
+        return bool(st.checkbox(label, value=bool(spec.default), help=spec.description, key=key))
+    if spec.type == "enum" and spec.choices:
+        default_index = spec.choices.index(spec.default) if spec.default in spec.choices else 0
+        return st.selectbox(
+            label,
+            options=list(spec.choices),
+            index=default_index,
+            help=spec.description,
+            key=key,
+        )
+    return st.text_input(label, value=str(spec.default), help=spec.description, key=key)
+
+
+def _default_float(value: object) -> float:
+    """Convert metadata default to float for Streamlit controls."""
+    if isinstance(value, bool):
+        raise ValueError("Boolean default cannot be used as float")
+    if isinstance(value, (str, int, float)):
+        return float(value)
+    raise ValueError(f"Unsupported float default: {value!r}")
+
+
+def _default_int(value: object) -> int:
+    """Convert metadata default to int for Streamlit controls."""
+    if isinstance(value, bool):
+        raise ValueError("Boolean default cannot be used as int")
+    if isinstance(value, (str, int, float)):
+        return int(value)
+    raise ValueError(f"Unsupported int default: {value!r}")
+
+
 def _render_single_experiment(upload_ok: bool, input_table: Table | None, data_source: str) -> None:
     """Render single algorithm experiment page."""
     if not upload_ok:
@@ -108,17 +204,11 @@ def _render_single_experiment(upload_ok: bool, input_table: Table | None, data_s
         return
 
     selected_algo = st.selectbox("选择算法", algo_names)
-
-    with st.expander("算法参数（JSON）"):
-        params_str = st.text_area("参数", value="{}")
+    params = _render_param_form(selected_algo)
+    if params is None:
+        return
 
     if st.button("跑实验", type="primary"):
-        try:
-            params = json.loads(params_str)
-        except json.JSONDecodeError as e:
-            st.error(f"参数 JSON 格式错误：{e}")
-            return
-
         with st.spinner("实验运行中..."):
             try:
                 result = run_experiment(
@@ -135,7 +225,9 @@ def _render_single_experiment(upload_ok: bool, input_table: Table | None, data_s
         result = st.session_state["last_result"]
         st.subheader(f"最近实验 (run_id: {result.run_id})")
 
-        metrics_df = pd.DataFrame([{"指标": k, "值": round(v, 4)} for k, v in result.metrics.items()])
+        metrics_df = pd.DataFrame(
+            [{"指标": k, "值": round(v, 4)} for k, v in result.metrics.items()]
+        )
         st.dataframe(metrics_df, use_container_width=True, hide_index=True)
 
         viz_path = Path(result.artifacts_path) / "viz.html"
@@ -222,7 +314,9 @@ def _render_batch_experiment(upload_ok: bool, input_table: Table | None, data_so
     batches = store.list_batches(limit=20)
 
     if batches:
-        batch_options = {b.batch_id: f"{b.batch_id} — {b.dataset_source} ({b.status.value})" for b in batches}
+        batch_options = {
+            b.batch_id: f"{b.batch_id} — {b.dataset_source} ({b.status.value})" for b in batches
+        }
         selected_batch_id = st.selectbox(
             "选择历史批量实验",
             options=list(batch_options.keys()),
@@ -254,14 +348,16 @@ def _render_history() -> None:
         history_data = []
         for run in runs:
             metrics = store.get_metrics(run.run_id)
-            history_data.append({
-                "run_id": run.run_id,
-                "算法": run.algorithm_name,
-                "数据集": run.dataset_version,
-                "F1": round(metrics.get("f1", 0.0), 4),
-                "PA-F1": round(metrics.get("pa_f1", 0.0), 4),
-                "时间": run.created_at.strftime("%Y-%m-%d %H:%M"),
-            })
+            history_data.append(
+                {
+                    "run_id": run.run_id,
+                    "算法": run.algorithm_name,
+                    "数据集": run.dataset_version,
+                    "F1": round(metrics.get("f1", 0.0), 4),
+                    "PA-F1": round(metrics.get("pa_f1", 0.0), 4),
+                    "时间": run.created_at.strftime("%Y-%m-%d %H:%M"),
+                }
+            )
         st.dataframe(pd.DataFrame(history_data), use_container_width=True, hide_index=True)
 
         run_label_map = {r.run_id: f"{r.run_id} — {r.algorithm_name}" for r in runs}

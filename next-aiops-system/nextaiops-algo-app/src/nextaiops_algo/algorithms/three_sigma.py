@@ -5,6 +5,7 @@ from typing import ClassVar
 import pandas as pd
 
 from nextaiops_algo.algorithms.base import AnomalyDetector
+from nextaiops_algo.algorithms.params import AlgorithmParamSpec
 from nextaiops_algo.algorithms.registry import register
 from nextaiops_algo.core.algorithm import TaskType
 from nextaiops_algo.core.table import FieldRole, Table, TableSchema
@@ -31,9 +32,27 @@ class ThreeSigma(AnomalyDetector):
     name: ClassVar[str] = "three_sigma"
     task_type: ClassVar[TaskType] = TaskType.ANOMALY_DETECTION
     required_input_roles: ClassVar[set[FieldRole]] = {FieldRole.METRIC}
+    param_specs: ClassVar[tuple[AlgorithmParamSpec, ...]] = (
+        AlgorithmParamSpec(
+            name="k",
+            type="float",
+            default=3.0,
+            description=(
+                "Number of standard deviations from the mean used as the anomaly "
+                "threshold. Smaller values are more sensitive; larger values are "
+                "more conservative."
+            ),
+            min_value=0.1,
+        ),
+    )
 
-    def __init__(self) -> None:
-        """Initialize ThreeSigma detector."""
+    def __init__(self, k: float = 3.0) -> None:
+        """Initialize ThreeSigma detector.
+
+        Args:
+            k: Standard deviation multiplier used for threshold bounds.
+        """
+        self._k = k
         self._stats: dict[str, tuple[float, float]] = {}
 
     def fit(self, data: Table) -> None:
@@ -86,17 +105,14 @@ class ThreeSigma(AnomalyDetector):
         for col in metrics_df.columns:
             mean, std = self._stats[col]
 
-            threshold_upper = mean + 3 * std
-            threshold_lower = mean - 3 * std
+            threshold_upper = mean + self._k * std
+            threshold_lower = mean - self._k * std
 
             # Anomaly score: absolute deviation from mean / std
             anomaly_score = ((metrics_df[col] - mean).abs() / std).fillna(0.0)
 
             # Anomaly label: 1 if outside [lower, upper]
-            is_anomaly = (
-                (metrics_df[col] > threshold_upper) |
-                (metrics_df[col] < threshold_lower)
-            )
+            is_anomaly = (metrics_df[col] > threshold_upper) | (metrics_df[col] < threshold_lower)
             per_metric_labels[col] = is_anomaly.astype(int)
 
             # Add score and thresholds
