@@ -19,6 +19,7 @@
       "Bash(git restore:*)",
       "Bash(git stash:*)",
       "Bash(git show:*)",
+      "Bash(git push:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(grep:*)",
@@ -60,7 +61,6 @@
       "Write(.github/**)"
     ],
     "deny": [
-      "Bash(git push:*)",
       "Bash(git reset --hard:*)",
       "Bash(git reset:*)",
       "Bash(git rebase:*)",
