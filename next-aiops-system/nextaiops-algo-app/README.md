@@ -93,6 +93,8 @@ pip install -e ".[dev,tsbuad]"
 make smoke-tsbuad
 ```
 
+> **算法效果提示**：IForest、PCA、HBOS 在默认配置下可在黄金数据集上产生 F1 > 0 的结果；LOF 和 OCSVM 在短时序上的检测能力有限，F1 可能为 0，建议搭配不同数据集或调整阈值参数（如 `threshold_method: percentile`）使用。
+
 ## 5. 架构总览
 
 ```text
