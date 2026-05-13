@@ -19,18 +19,31 @@ from nextaiops_algo.algorithms.adapters.tsbuad_adapter import TSBUADAdapter
 from nextaiops_algo.algorithms.adapters.tsbuad_registry import register_tsbuad_algorithms
 from nextaiops_algo.algorithms.base import AnomalyDetector
 from nextaiops_algo.algorithms.iqr import IQR
-from nextaiops_algo.algorithms.registry import REGISTRY, get_algorithm, list_algorithms, register
+from nextaiops_algo.algorithms.params import AlgorithmParamSpec
+from nextaiops_algo.algorithms.registry import (
+    REGISTRY,
+    create_algorithm,
+    get_algorithm,
+    get_algorithm_param_specs,
+    list_algorithms,
+    normalize_algorithm_params,
+    register,
+)
 from nextaiops_algo.algorithms.three_sigma import ThreeSigma
 
 register_tsbuad_algorithms()
 
 __all__ = [
     "AnomalyDetector",
+    "AlgorithmParamSpec",
+    "create_algorithm",
     "IQR",
     "REGISTRY",
     "TSBUADAdapter",
     "get_algorithm",
+    "get_algorithm_param_specs",
     "list_algorithms",
+    "normalize_algorithm_params",
     "register",
     "register_tsbuad_algorithms",
     "ThreeSigma",

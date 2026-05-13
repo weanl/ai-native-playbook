@@ -5,7 +5,12 @@ from datetime import datetime
 from pathlib import Path
 
 from nextaiops_algo.algorithms.base import AnomalyDetector
-from nextaiops_algo.algorithms.registry import get_algorithm
+from nextaiops_algo.algorithms.params import format_experiment_label, identity_params
+from nextaiops_algo.algorithms.registry import (
+    create_algorithm,
+    get_algorithm_param_specs,
+    normalize_algorithm_params,
+)
 from nextaiops_algo.core.algorithm import Algorithm
 from nextaiops_algo.core.exceptions import SchemaValidationError
 from nextaiops_algo.core.experiment import ExperimentRun, RunResult, RunStatus
@@ -134,8 +139,10 @@ def run_experiment(
         SchemaValidationError: If input/output schema validation fails.
         ValueError: If algorithm not found or invalid split_ratio.
     """
-    # Get algorithm from registry
-    algo_base = get_algorithm(algorithm_name)
+    normalized_params = normalize_algorithm_params(algorithm_name, params)
+
+    # Create algorithm from registry for this run.
+    algo_base = create_algorithm(algorithm_name, normalized_params)
     if algo_base is None:
         raise ValueError(f"Algorithm '{algorithm_name}' not found in registry")
 
@@ -157,8 +164,6 @@ def run_experiment(
     train_table, test_table = split_by_time(full_table, ratio=split_ratio)
 
     # Step 3: Fit and detect
-    # Note: params are for future use (e.g., algorithm-specific config)
-    # M0: algorithms get config during instantiation, not fit()
     algo.fit(train_table)
     result_table = algo.detect(test_table)
 
@@ -174,7 +179,7 @@ def run_experiment(
         run_id=run_id,
         dataset_version=Path(dataset_path).name,
         algorithm_name=algorithm_name,
-        params=params or {},
+        params=normalized_params,
         status=RunStatus.COMPLETED,
         artifacts_path=artifacts_path,
         created_at=datetime.now(),
@@ -190,6 +195,11 @@ def run_experiment(
     detect_csv_path = Path(artifacts_path) / "detect_output.csv"
     detect_csv_path.parent.mkdir(parents=True, exist_ok=True)
     result_table.df.to_csv(detect_csv_path, index=False)
+
+    specs = get_algorithm_param_specs(algorithm_name)
+    run_identity_params = identity_params(specs, normalized_params) if specs else normalized_params
+    experiment_label = format_experiment_label(algorithm_name, run_identity_params)
+    (Path(artifacts_path) / "experiment_label.txt").write_text(experiment_label)
 
     # Import viz here to avoid circular import and handle missing plotly
     try:
