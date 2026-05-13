@@ -1076,6 +1076,208 @@ make smoke-tsbuad
 
 ---
 
+# M1.5 任务拆解：单算法实验工作台增强
+
+> M1.5 聚焦“单算法实验”从 demo 形态升级为可解释、可调参、可预览的实验工作台。
+> 本阶段不改变 `core/` 既有接口，不引入新重依赖；优先复用现有 Table / pipeline / viz / storage 边界。
+
+## M1.5 总验收线
+
+打通增强后的单算法实验闭环：
+**选择或上传数据 → 数据画像与曲线预览 → 选择算法并理解参数 → 运行实验 → 结果数量解释 + GT/TP/FP/FN 可视化 → 历史可追溯**
+
+完成标准：
+- [ ] 单算法页能在运行前展示字段推断、指标曲线、真实异常标签与数据特征
+- [ ] 算法参数以表单展示默认值、类型、含义与建议，不再要求用户手写 JSON
+- [ ] 用户配置的参数真实参与算法实例化、落库，并参与实验标识生成
+- [ ] 实验结果表格展示真实异常数、算法检出数、TP / FP / FN / TN、异常段命中情况
+- [ ] 结果曲线叠加真实异常标签，并区分命中、误报、漏检
+- [ ] 图表交互主要依赖 hover / legend / zoom / pan / double-click reset 等鼠标操作
+- [ ] 支持多文件或 zip 作为同一数据集的方案完成设计，代码落地后保持 schema 一致性校验
+
+## PR-1（M1.5）：算法参数元信息 + 参数生效链路
+
+**目标**：让单算法实验的参数配置从“手写 JSON 且不一定生效”升级为“算法声明参数元信息，UI 表单引导配置，pipeline 使用参数创建算法实例”。
+
+**范围**：
+- `src/nextaiops_algo/algorithms/params.py`：新增参数元信息模型（名称、类型、默认值、说明、取值范围、枚举、是否参与实验标识）
+- `src/nextaiops_algo/algorithms/registry.py`：新增按参数创建算法实例的 helper，例如 `create_algorithm(name, params)`
+- `src/nextaiops_algo/algorithms/three_sigma.py`：支持 `k` 参数，默认 `3.0`，声明参数元信息
+- `src/nextaiops_algo/algorithms/iqr.py`：声明 `k` 参数元信息，默认 `1.5`
+- `src/nextaiops_algo/pipeline/run.py`：使用 params 创建算法实例，并保存 normalized params
+- `src/nextaiops_algo/ui/app.py`：单算法页用参数表单替代 JSON，展示默认值和参数含义
+- 测试：
+  - `tests/unit/test_algorithm_params.py`
+  - `tests/unit/test_run.py`
+  - `tests/unit/test_three_sigma.py`
+  - `tests/unit/test_iqr.py`
+
+**关键设计点**：
+- 参数元信息放在 `algorithms/` 可变层，不进入 `core/`。
+- REGISTRY 可继续保存默认算法实例；运行实验时根据参数创建新的算法对象，避免跨 run 状态污染。
+- 参数表单按类型渲染：number input / slider / selectbox / checkbox。
+- 实验标识建议由 `algorithm_name + normalized_params + dataset_version + split_config` 生成。
+- 未声明参数元信息的算法优雅降级为 JSON 参数输入，便于 TSB-UAD adapter 后续逐步补齐。
+
+**验收线**：
+- [ ] UI 能看到参数默认值、类型与含义
+- [ ] `three_sigma k=2` 与 `k=3` 的检测结果可产生差异
+- [ ] `iqr k=1.5` 默认行为不回归
+- [ ] run record 中保存 normalized params
+- [ ] 单算法页展示可读实验标识，例如 `three_sigma[k=3.0]`
+- [ ] `make test` 与 `make smoke` 通过
+
+**红线映射**：R2（算法仍消费/产出 Table），R3（参数参与复现记录），R6（不引入 PLAN 未声明依赖）
+
+---
+
+## PR-2（M1.5）：数据预览增强
+
+**目标**：让用户在运行实验前理解数据质量、字段角色、指标走势与真实异常标签分布，避免盲目调参。
+
+**范围**：
+- `src/nextaiops_algo/pipeline/profile.py`：新增数据画像函数
+- `src/nextaiops_algo/viz/preview.py`：新增数据预览图
+- `src/nextaiops_algo/ui/app.py`：增强数据预览区
+- 测试：
+  - `tests/unit/test_profile.py`
+  - `tests/unit/test_viz_preview.py`
+
+**数据画像内容**：
+- 行数、列数、字段角色、dtype、缺失率
+- METRIC 列数量与名称
+- LABEL 存在时展示真实异常点数、异常比例、连续异常段数、最长异常段长度
+- 无 LABEL 时明确提示“无法计算真实异常统计”
+
+**预览图要求**：
+- 默认展示第一个 METRIC 指标曲线
+- 多 METRIC 时支持选择指标
+- 有真实 LABEL 时叠加异常点或异常区间
+- 无 TIMESTAMP 时使用 index 作为 x 轴
+
+**验收线**：
+- [ ] 上传或选择数据后，无需运行实验即可看到指标曲线
+- [ ] 可看到真实异常数量、异常比例、异常段数量
+- [ ] 有 LABEL 时叠加真实异常；无 LABEL 时优雅降级
+- [ ] 多 METRIC 可切换查看
+- [ ] `make test` 通过
+
+**红线映射**：R2（预览只消费 Table），R5（测试不吞异常）
+
+---
+
+## PR-3（M1.5）：实验结果解释增强
+
+**目标**：让实验结果不仅显示指标分数，还说明真实异常、检出异常、命中、误报、漏检，并在曲线上直观看出算法表现。
+
+**范围**：
+- `src/nextaiops_algo/pipeline/diagnostics.py`：新增检测诊断函数
+- `src/nextaiops_algo/viz/timeseries.py` 或 `src/nextaiops_algo/viz/result.py`：增强结果曲线
+- `src/nextaiops_algo/ui/app.py`：升级单算法结果展示
+- 测试：
+  - `tests/unit/test_diagnostics.py`
+  - `tests/unit/test_timeseries.py`
+
+**诊断内容**：
+- `true_anomalies`
+- `predicted_anomalies`
+- `tp` / `fp` / `fn` / `tn`
+- `true_segments`
+- `hit_segments`
+
+**结果图要求**：
+- 真实异常段用背景带或独立标记展示
+- TP / FP / FN 使用不同视觉标记
+- hover 展示 timestamp/index、metric value、真实标签、预测标签、score、threshold、分类结果
+- 多 METRIC 默认展示第一个 metric，后续可扩展 metric selector
+
+**指标说明要求**：
+- Precision：检出的异常中有多少是真的，越高说明误报越少
+- Recall：真实异常中有多少被检出，越高说明漏报越少
+- F1：Precision 与 Recall 的综合平衡
+- PA-F1：按异常段调整后的 F1，更贴近运维场景
+
+**验收线**：
+- [ ] 结果表格显示真实异常数、检出异常数、TP / FP / FN / TN
+- [ ] 指标表包含 Precision / Recall / F1 / PA-F1 的含义说明
+- [ ] 曲线能区分命中、误报、漏检
+- [ ] 不改变算法输出 Table 契约
+- [ ] `make test` 与 `make smoke` 通过
+
+**红线映射**：R2（诊断在 pipeline/viz 层，不进入算法），R5（测试不改断言）
+
+---
+
+## PR-4（M1.5）：单算法交互与视觉 polish
+
+**目标**：降低按钮堆叠感，让单算法页更像专业 AIOps 工作台，而不是临时 demo。
+
+**范围**：
+- `src/nextaiops_algo/ui/app.py`
+- `src/nextaiops_algo/viz/preview.py`
+- `src/nextaiops_algo/viz/timeseries.py`
+
+**交互原则**：
+- 图表操作主要依赖 Plotly 原生鼠标交互：hover、legend 隐藏/显示、框选缩放、拖拽平移、双击复位
+- 减少图表外部按钮式切换
+- 参数配置与数据选择靠近实验入口，结果解释与主图靠近展示区
+
+**展示建议**：
+- 单算法页布局调整为：数据源与算法配置在侧栏或左栏，主区域上方数据预览，下方实验结果与解释图
+- 使用语义色表达 TP / FP / FN，不使用大面积装饰性渐变
+- 指标卡片数量控制在 4 到 6 个，详细解释放入表格或 expander
+
+**验收线**：
+- [ ] 单算法页主流程无需频繁切换按钮即可完成查看
+- [ ] hover 信息足够解释单点判断
+- [ ] 结果区域视觉层次清楚，图表为主，表格为辅
+- [ ] `make demo` 能完整走通单算法实验
+
+**红线映射**：R6（UI 不写业务逻辑，只调用 pipeline/viz/storage）
+
+---
+
+## PR-5（M1.5）：DatasetBundle 多文件 / zip 输入
+
+**目标**：支持上传多个文件或压缩包作为同一个数据集，并在同一 schema 约束下运行单算法实验。
+
+**范围**：
+- `src/nextaiops_algo/pipeline/dataset_bundle.py`：新增 DatasetBundle / DatasetFile 模型与加载逻辑
+- `src/nextaiops_algo/pipeline/preprocess.py`：复用现有 `read_to_table`，增加 bundle 分发入口
+- `src/nextaiops_algo/ui/app.py`：支持多文件上传与 zip 上传
+- 可选：`src/nextaiops_algo/pipeline/run_bundle.py`：逐文件运行单算法并聚合结果
+- 测试：
+  - `tests/unit/test_dataset_bundle.py`
+  - `tests/integration/test_single_bundle_experiment.py`
+
+**关键设计点**：
+- M1.5 默认采用“同一数据集内逐文件独立运行，再汇总”的策略，不先拼接为一个 Table。
+- 同一 DatasetBundle 内字段角色必须一致；不一致时 fail-fast，并展示具体文件差异。
+- zip 仅解包支持的输入文件类型；忽略隐藏文件与目录。
+- 多文件结果展示包含 dataset 级汇总与 file 级明细。
+
+**验收线**：
+- [ ] 多个 CSV 可作为同一 dataset 上传并通过 schema 一致性校验
+- [ ] zip 中多个支持文件可被识别并加载
+- [ ] schema 不一致时提示具体冲突
+- [ ] 单算法可对每个文件独立运行并展示汇总结果
+- [ ] 不改变单文件输入行为
+- [ ] `make test` 与 `make smoke` 通过
+
+**红线映射**：R3（每个 run 仍需落库与保留参数），R5（失败不能吞异常），R6（不引入未声明依赖）
+
+---
+
+## M1.5 推荐实施顺序
+
+1. PR-1：先修通参数元信息与参数生效链路，解决功能正确性问题。
+2. PR-2：补数据预览，提升实验前判断能力。
+3. PR-3：补结果解释与 GT/TP/FP/FN 可视化，提升实验后判断能力。
+4. PR-4：做交互与视觉 polish。
+5. PR-5：最后落多文件 / zip DatasetBundle，避免过早扩大 pipeline 和 storage 复杂度。
+
+---
+
 ## M1 → M2 候选 proposal（仅参考）
 
 | ID  | 标题 | 备注 |
