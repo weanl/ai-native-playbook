@@ -24,6 +24,9 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.7.0",
 ]
+tsbuad = [
+    "TSB-UAD==0.0.3",
+]
 
 [project.scripts]
 nextaiops-algo = "nextaiops_algo.cli.__main__:main"
@@ -78,6 +81,7 @@ module = [
     "sklearn.*",
     "plotly.*",
     "streamlit.*",
+    "TSB_UAD.*",
 ]
 ignore_missing_imports = true
 

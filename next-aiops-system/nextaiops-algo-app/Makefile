@@ -1,7 +1,7 @@
 # NextAIOpsAlgoApp Makefile
 # M0 Walking Skeleton
 
-.PHONY: dev test lint fmt smoke demo clean help setup
+.PHONY: dev test lint fmt smoke smoke-tsbuad demo clean help setup
 
 # 默认目标
 .DEFAULT_GOAL := help
@@ -53,8 +53,11 @@ smoke: ## 运行冒烟测试（ALG 参数可选，如 make smoke ALG=three_sigma
 ifneq ($(ALG),"")
 	$(PYTEST) $(TEST_DIR)/smoke -v -k $(ALG)
 else
-	$(PYTEST) $(TEST_DIR)/smoke -v
+	$(PYTEST) $(TEST_DIR)/smoke -v --ignore=$(TEST_DIR)/smoke/test_tsbuad_smoke.py
 endif
+
+smoke-tsbuad: ## 运行 TSB-UAD 冒烟测试（需先 pip install -e ".[tsbuad]"）
+	$(PYTEST) $(TEST_DIR)/smoke/test_tsbuad_smoke.py -v
 
 # =============================================================================
 # 代码质量
@@ -108,6 +111,7 @@ help: ## 显示帮助信息
 	@echo "  make lint         静态检查（ruff + mypy）"
 	@echo "  make fmt          格式化代码"
 	@echo "  make smoke ALG=X  冒烟测试（指定算法）"
+	@echo "  make smoke-tsbuad TSB-UAD 算法冒烟测试（需安装 extras）"
 	@echo "  make demo         启动 Streamlit demo"
 	@echo "  make setup        设置 git hooks"
 	@echo ""
