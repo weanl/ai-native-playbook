@@ -5,7 +5,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from nextaiops_algo.core.experiment import ExperimentRun, RunStatus
+from nextaiops_algo.core.experiment import BatchRun, BatchStatus, ExperimentRun, RunStatus
 from nextaiops_algo.core.tracking import TrackingStore
 
 
@@ -58,6 +58,29 @@ class SqliteTrackingStore(TrackingStore):
                 run_id TEXT NOT NULL,
                 metric_name TEXT NOT NULL,
                 value REAL NOT NULL,
+                FOREIGN KEY (run_id) REFERENCES runs(run_id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS batches (
+                batch_id TEXT PRIMARY KEY,
+                dataset_source TEXT NOT NULL,
+                algorithm_names_json TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS batch_runs (
+                batch_id TEXT NOT NULL,
+                run_id TEXT NOT NULL,
+                algorithm_name TEXT NOT NULL,
+                status TEXT NOT NULL,
+                error_message TEXT,
+                PRIMARY KEY (batch_id, run_id),
+                FOREIGN KEY (batch_id) REFERENCES batches(batch_id),
                 FOREIGN KEY (run_id) REFERENCES runs(run_id)
             )
         """)
@@ -212,3 +235,126 @@ class SqliteTrackingStore(TrackingStore):
         conn.close()
 
         return {row[0]: row[1] for row in rows}
+
+    # --- Batch tracking methods --- #
+
+    def log_batch(self, batch: BatchRun) -> None:
+        """Log a new batch run to the database.
+
+        Args:
+            batch: The BatchRun to log.
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO batches (batch_id, dataset_source, algorithm_names_json,
+                                  status, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            batch.batch_id,
+            batch.dataset_source,
+            json.dumps(batch.algorithm_names),
+            batch.status.value,
+            batch.created_at.isoformat(),
+        ))
+
+        for run in batch.runs:
+            cursor.execute("""
+                INSERT INTO batch_runs (batch_id, run_id, algorithm_name,
+                                        status, error_message)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                batch.batch_id,
+                run.run_id,
+                run.algorithm_name,
+                run.status.value,
+                None,
+            ))
+
+        conn.commit()
+        conn.close()
+
+    def get_batch(self, batch_id: str) -> BatchRun | None:
+        """Retrieve a batch run by its ID.
+
+        Args:
+            batch_id: The unique identifier of the batch.
+
+        Returns:
+            The BatchRun if found, else None.
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT batch_id, dataset_source, algorithm_names_json,
+                   status, created_at
+            FROM batches
+            WHERE batch_id = ?
+        """, (batch_id,))
+
+        row = cursor.fetchone()
+
+        if row is None:
+            conn.close()
+            return None
+
+        # Fetch associated batch_runs
+        cursor.execute("""
+            SELECT run_id, algorithm_name, status, error_message
+            FROM batch_runs
+            WHERE batch_id = ?
+        """, (batch_id,))
+
+        batch_run_rows = cursor.fetchall()
+        conn.close()
+
+        # Reconstruct ExperimentRun objects from the runs table
+        runs: list[ExperimentRun] = []
+        for br_row in batch_run_rows:
+            run_id = br_row[0]
+            experiment_run = self.get_run(run_id)
+            if experiment_run is not None:
+                runs.append(experiment_run)
+
+        return BatchRun(
+            batch_id=row[0],
+            dataset_source=row[1],
+            algorithm_names=json.loads(row[2]),
+            created_at=datetime.fromisoformat(row[4]),
+            runs=runs,
+            status=BatchStatus(row[3]),
+        )
+
+    def list_batches(self, limit: int | None = None) -> list[BatchRun]:
+        """List batch runs, optionally limited.
+
+        Args:
+            limit: Maximum number of batches to return. None means all.
+
+        Returns:
+            List of BatchRun records, ordered by creation time (newest first).
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        if limit is None:
+            cursor.execute("""
+                SELECT batch_id FROM batches ORDER BY created_at DESC
+            """)
+        else:
+            cursor.execute("""
+                SELECT batch_id FROM batches ORDER BY created_at DESC LIMIT ?
+            """, (limit,))
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        batches: list[BatchRun] = []
+        for row in rows:
+            batch = self.get_batch(row[0])
+            if batch is not None:
+                batches.append(batch)
+
+        return batches

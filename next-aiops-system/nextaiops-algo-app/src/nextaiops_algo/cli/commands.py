@@ -2,12 +2,12 @@
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import typer
 
 from nextaiops_algo.algorithms.registry import list_algorithms
-from nextaiops_algo.pipeline import run_experiment
+from nextaiops_algo.pipeline import run_batch, run_experiment
 from nextaiops_algo.storage.sqlite_tracking import SqliteTrackingStore
 
 app = typer.Typer(
@@ -84,3 +84,57 @@ def list_runs(
         typer.echo(f"    created: {run.created_at}")
         if run.params:
             typer.echo(f"    params: {run.params}")
+
+
+@app.command()
+def batch(
+    data: Annotated[Path, typer.Option("--data", help="Path to input data or builtin dataset name")] = ...,  # type: ignore[assignment]
+    algos: Annotated[str, typer.Option("--algos", help="Comma-separated algorithm names, or 'all'")] = "all",
+    output: Annotated[Path | None, typer.Option("--output", help="Output directory for artifacts")] = None,
+) -> None:
+    """Run a batch experiment with multiple algorithms on one dataset.
+
+    Example:
+        python -m nextaiops_algo batch --data metrics.csv --algos three_sigma,iqr
+        python -m nextaiops_algo batch --data metrics.csv --algos all
+    """
+    algo_list: list[str] | Literal["__all__"] = "__all__" if algos.lower() == "all" else [a.strip() for a in algos.split(",")]
+
+    typer.echo(f"Running batch: algos={algo_list}, data={data}")
+
+    result = run_batch(
+        dataset=data,
+        algorithms=algo_list,
+        output_dir=output,
+    )
+
+    typer.echo("\nBatch completed:")
+    typer.echo(f"  batch_id: {result.batch_id}")
+    typer.echo(f"  status: {result.status}")
+
+    for run in result.runs:
+        status_icon = "✓" if run.status.value == "completed" else "✗"
+        typer.echo(f"  [{status_icon}] {run.algorithm_name}: {run.status}")
+
+    typer.echo("\nUse 'list-batches' to query batch history.")
+
+
+@app.command()
+def list_batches(
+    limit: Annotated[int, typer.Option("--limit", help="Maximum number of batches to display")] = 20,
+) -> None:
+    """List recent batch experiment runs."""
+    store = SqliteTrackingStore()
+    batches = store.list_batches(limit=limit)
+
+    if not batches:
+        typer.echo("No batches found.")
+        return
+
+    typer.echo(f"Recent batches (limit={limit}):")
+    for b in batches:
+        typer.echo(f"\n  batch_id: {b.batch_id}")
+        typer.echo(f"    dataset: {b.dataset_source}")
+        typer.echo(f"    algorithms: {b.algorithm_names}")
+        typer.echo(f"    status: {b.status}")
+        typer.echo(f"    created: {b.created_at}")
