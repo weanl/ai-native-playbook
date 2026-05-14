@@ -1289,14 +1289,14 @@ make smoke-tsbuad
 **选择或上传单文件 / 多文件 / zip → 选择多个算法 → 运行算法 × 文件矩阵 → 查看总排行榜 + 文件矩阵热力图 + 单文件多算法钻取 → 保留 summary artifacts**
 
 完成标准：
-- [ ] 批量实验页支持 DatasetBundle 多文件 / zip 输入，不再要求切回单文件
-- [ ] 多算法 × 多文件运行时单个 cell 失败不阻断整体批量实验
-- [ ] 每个成功 cell 仍通过 `run_experiment()` 独立落库，满足复现与追踪要求
-- [ ] 批量 bundle 结果写出 `batch_bundle_summary.json`
-- [ ] UI 展示算法级聚合排行榜（mean / median / min / success_rate）
-- [ ] UI 展示算法 × 文件热力图或矩阵，能看出哪个算法在哪个文件翻车
-- [ ] UI 支持选择单个文件查看该文件上的多算法叠加对比
-- [ ] 单文件批量实验原行为不回归
+- [x] 批量实验页支持 DatasetBundle 多文件 / zip 输入，不再要求切回单文件
+- [x] 多算法 × 多文件运行时单个 cell 失败不阻断整体批量实验
+- [x] 每个成功 cell 仍通过 `run_experiment()` 独立落库，满足复现与追踪要求
+- [x] 批量 bundle 结果写出 `batch_bundle_summary.json`
+- [x] UI 展示算法级聚合排行榜（mean / median / min / success_rate）
+- [x] UI 展示算法 × 文件热力图或矩阵，能看出哪个算法在哪个文件翻车
+- [x] UI 支持选择单个文件查看该文件上的多算法叠加对比
+- [x] 单文件批量实验原行为不回归
 
 ## PR-1（M1.6）：批量 DatasetBundle 引擎
 
@@ -1322,12 +1322,12 @@ make smoke-tsbuad
 - 不改现有 `run_batch()`，单文件批量实验继续使用原逻辑。
 
 **验收线**：
-- [ ] 两个算法 × 两个文件可跑通并返回 4 个 cell
-- [ ] 未注册算法只标记对应 cell failed，不阻断其他算法
-- [ ] 单个文件失败不阻断同一算法的其他文件
-- [ ] algorithm-level 聚合指标包含 `mean_pa_f1` / `median_pa_f1` / `min_pa_f1` / `success_rate`
-- [ ] `batch_bundle_summary.json` 包含 batch_bundle_id / dataset_id / algorithms / files / cells / algorithm_metrics
-- [ ] 不改变 `run_batch()` 单文件行为
+- [x] 两个算法 × 两个文件可跑通并返回 4 个 cell
+- [x] 未注册算法只标记对应 cell failed，不阻断其他算法
+- [x] 单个文件失败不阻断同一算法的其他文件
+- [x] algorithm-level 聚合指标包含 `mean_pa_f1` / `median_pa_f1` / `min_pa_f1` / `success_rate`
+- [x] `batch_bundle_summary.json` 包含 batch_bundle_id / dataset_id / algorithms / files / cells / algorithm_metrics
+- [x] 不改变 `run_batch()` 单文件行为
 
 **红线映射**：R2（仍经 pipeline 调用算法，算法 I/O 不变），R3（每个成功 cell 独立落库），R5（失败不吞异常，记录上下文），R6（不引入新依赖）
 
@@ -1346,10 +1346,10 @@ make smoke-tsbuad
 - 单文件钻取时复用现有 `render_overlay()`，必要时构造只包含该文件成功 runs 的轻量 `BatchRun` 视图。
 
 **验收线**：
-- [ ] 排行榜能展示成功率与聚合指标
-- [ ] 矩阵能展示每个算法在每个文件上的指标
-- [ ] 热力图能处理 failed cell，不报错
-- [ ] 指定不存在 metric 时优雅降级为空值
+- [x] 排行榜能展示成功率与聚合指标
+- [x] 矩阵能展示每个算法在每个文件上的指标
+- [x] 热力图能处理 failed cell，不报错
+- [x] 指定不存在 metric 时优雅降级为空值
 
 **红线映射**：R2（viz 只消费结果对象，不触碰算法），R5（测试覆盖失败 cell）
 
@@ -1373,11 +1373,11 @@ make smoke-tsbuad
 - 不在 UI 中重算算法结果；UI 仅调用 pipeline/viz/storage。
 
 **验收线**：
-- [ ] DatasetBundle 输入进入批量页后可以直接运行
-- [ ] UI 显示任务数与结果矩阵
-- [ ] 选择某个文件能查看该文件成功算法的叠加对比
-- [ ] failed cell 不影响其他结果展示
-- [ ] 单文件批量页原排行榜 / overlay / heatmap 仍可用
+- [x] DatasetBundle 输入进入批量页后可以直接运行
+- [x] UI 显示任务数与结果矩阵
+- [x] 选择某个文件能查看该文件成功算法的叠加对比
+- [x] failed cell 不影响其他结果展示
+- [x] 单文件批量页原排行榜 / overlay / heatmap 仍可用
 
 **红线映射**：R3（展示已落库 run_id），R6（UI 不写业务逻辑）
 
