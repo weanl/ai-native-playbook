@@ -158,6 +158,33 @@ def _bundle_dataset_id(paths: list[Path]) -> str:
     return f"{paths[0].name}+{len(paths) - 1}" if len(paths) > 1 else paths[0].name
 
 
+def _select_bundle_file(bundle: DatasetBundle, key: str, label: str) -> Table:
+    """Render a file selector for DatasetBundle and return the chosen Table."""
+    selected_name = st.selectbox(
+        label,
+        options=[dataset_file.name for dataset_file in bundle.files],
+        key=key,
+    )
+    return next(
+        dataset_file.table for dataset_file in bundle.files if dataset_file.name == selected_name
+    )
+
+
+def _render_filterable_dataframe(df: pd.DataFrame, key: str) -> None:
+    """Render a dataframe with selectable visible columns."""
+    columns = list(df.columns)
+    selected_columns = st.multiselect(
+        "显示列",
+        options=columns,
+        default=columns,
+        key=f"{key}_columns",
+    )
+    if selected_columns:
+        st.dataframe(df[selected_columns], use_container_width=True, hide_index=True)
+    else:
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+
 def _render_param_form(algorithm_name: str) -> dict[str, object] | None:
     """Render algorithm parameter controls and return params."""
     specs = get_algorithm_param_specs(algorithm_name)
@@ -289,10 +316,10 @@ def _render_data_preview(table: Table) -> None:
                 for column in profile.columns
             ]
         )
-        st.dataframe(mapping_df, use_container_width=True, hide_index=True)
+        _render_filterable_dataframe(mapping_df, key="preview_schema")
 
     with sample_tab:
-        st.dataframe(table.df.head(20), use_container_width=True)
+        _render_filterable_dataframe(table.df.head(20), key="preview_sample")
 
 
 def _render_profile_summary(profile: TableProfile) -> None:
@@ -346,7 +373,9 @@ def _render_single_result(result_artifacts_path: str, metrics: dict[str, float])
             if metric_name in metrics
         ]
     )
-    st.dataframe(metrics_df, use_container_width=True, hide_index=True)
+    _render_filterable_dataframe(
+        metrics_df, key=f"single_metrics_{Path(result_artifacts_path).name}"
+    )
 
 
 def _metric_explanations() -> list[tuple[str, str, str]]:
@@ -410,10 +439,23 @@ def _render_single_experiment(
                         st.session_state.pop("last_bundle_result", None)
                         st.success(f"实验完成! run_id={result.run_id}")
                     else:
+                        progress_bar = st.progress(0.0)
+                        progress_text = st.empty()
+
+                        def update_bundle_progress(index: int, total: int, file_name: str) -> None:
+                            progress_bar.progress((index - 1) / total)
+                            progress_text.caption(f"正在运行 {index}/{total}：{file_name}")
+
                         bundle_result = run_bundle_experiment(
                             bundle=input_bundle,
                             algorithm_name=selected_algo,
                             params=params,
+                            progress_callback=update_bundle_progress,
+                        )
+                        progress_bar.progress(1.0)
+                        progress_text.caption(
+                            f"已完成 {len(bundle_result.file_results)}/"
+                            f"{len(input_bundle.files)} 个文件"
                         )
                         st.session_state["last_bundle_result"] = bundle_result
                         st.session_state.pop("last_result", None)
@@ -423,6 +465,8 @@ def _render_single_experiment(
                         )
                 except SchemaValidationError as e:
                     st.error(f"Schema 校验失败：{e}")
+                except Exception as e:
+                    st.error(f"实验运行失败：{e}")
 
     with result_col:
         st.subheader("实验结果")
@@ -468,10 +512,10 @@ def _render_bundle_result(bundle_result: BundleRunResult) -> None:
                 "Recall": round(metrics.get("recall", 0.0), 4),
             }
         )
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    _render_filterable_dataframe(pd.DataFrame(rows), key=f"bundle_rows_{bundle_result.bundle_id}")
 
     selected_run_id = st.selectbox(
-        "查看文件结果曲线",
+        "结果文件",
         options=[file_result.run_result.run_id for file_result in bundle_result.file_results],
         format_func=lambda run_id: next(
             file_result.file_name
@@ -558,7 +602,7 @@ def _render_batch_experiment(
         with tab1:
             store = SqliteTrackingStore()
             lb_df = render_leaderboard(batch, store=store)
-            st.dataframe(lb_df, use_container_width=True, hide_index=True)
+            _render_filterable_dataframe(lb_df, key=f"batch_leaderboard_{batch.batch_id}")
 
         with tab2:
             if batch_input is not None:
@@ -591,7 +635,10 @@ def _render_batch_experiment(
 
         with tab1:
             lb_df = render_leaderboard(selected_batch, store=store)
-            st.dataframe(lb_df, use_container_width=True, hide_index=True)
+            _render_filterable_dataframe(
+                lb_df,
+                key=f"history_batch_leaderboard_{selected_batch.batch_id}",
+            )
 
         with tab3:
             hm_fig = render_heatmap(selected_batch, store=store)
@@ -621,7 +668,7 @@ def _render_history() -> None:
                     "时间": run.created_at.strftime("%Y-%m-%d %H:%M"),
                 }
             )
-        st.dataframe(pd.DataFrame(history_data), use_container_width=True, hide_index=True)
+        _render_filterable_dataframe(pd.DataFrame(history_data), key="history_runs")
 
         run_label_map = {r.run_id: f"{r.run_id} — {r.algorithm_name}" for r in runs}
         selected_run_id = st.selectbox(
@@ -644,17 +691,23 @@ page = st.sidebar.radio("功能页面", ["单算法实验", "批量实验", "历
 upload_ok, input_table, data_source_desc, input_bundle = _get_input_table()
 
 if upload_ok and input_table is not None:
+    preview_table = input_table
     if input_bundle is not None:
         st.info(
             f"已加载 DatasetBundle：{input_bundle.dataset_id}，"
-            f"共 {input_bundle.file_count} 个文件；下方预览首个文件。"
+            f"共 {input_bundle.file_count} 个文件。"
+        )
+        preview_table = _select_bundle_file(
+            input_bundle,
+            key="bundle_preview_file",
+            label="预览文件",
         )
 
-    metric_cols = input_table.schema.columns_of(FieldRole.METRIC)
+    metric_cols = preview_table.schema.columns_of(FieldRole.METRIC)
     if len(metric_cols) > 1:
         st.info(f"检测到 {len(metric_cols)} 个 METRIC 列：{', '.join(metric_cols)}")
 
-    _render_data_preview(input_table)
+    _render_data_preview(preview_table)
 
 # ── Page routing ────────────────────────────────────────────
 if page == "单算法实验":

@@ -59,3 +59,25 @@ def test_run_bundle_experiment_runs_each_file_and_writes_summary(tmp_path: Path)
         assert run is not None
         assert run.dataset_version == file_result.file_name
         assert (Path(file_result.run_result.artifacts_path) / "viz.html").exists()
+
+
+def test_run_bundle_experiment_reports_progress(tmp_path: Path) -> None:
+    """Bundle runs expose file-level progress callbacks for UI feedback."""
+    paths = [
+        _write_experiment_csv(tmp_path / "a.csv", anomaly_offset=0),
+        _write_experiment_csv(tmp_path / "b.csv", anomaly_offset=1),
+    ]
+    bundle = load_dataset_bundle(paths)
+    progress_events: list[tuple[int, int, str]] = []
+
+    run_bundle_experiment(
+        bundle=bundle,
+        algorithm_name="three_sigma",
+        output_dir=tmp_path / "artifacts",
+        split_ratio=0.7,
+        progress_callback=lambda index, total, file_name: progress_events.append(
+            (index, total, file_name)
+        ),
+    )
+
+    assert progress_events == [(1, 2, "a.csv"), (2, 2, "b.csv")]

@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -35,6 +36,7 @@ def run_bundle_experiment(
     params: dict[str, object] | None = None,
     output_dir: Path | None = None,
     split_ratio: float = 0.7,
+    progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> BundleRunResult:
     """Run one algorithm independently for each file in a DatasetBundle.
 
@@ -44,6 +46,8 @@ def run_bundle_experiment(
         params: Algorithm parameters passed through to each file run.
         output_dir: Base directory for artifacts. If None, uses default.
         split_ratio: Fraction for training data.
+        progress_callback: Optional callback receiving current index, total count,
+            and file name before each file run starts.
 
     Returns:
         BundleRunResult with per-file results and mean metrics.
@@ -51,7 +55,10 @@ def run_bundle_experiment(
     bundle_id = uuid.uuid4().hex[:12]
     file_results: list[BundleFileResult] = []
 
-    for dataset_file in bundle.files:
+    total_files = len(bundle.files)
+    for index, dataset_file in enumerate(bundle.files, start=1):
+        if progress_callback is not None:
+            progress_callback(index, total_files, dataset_file.name)
         result = run_experiment(
             dataset_path=dataset_file.path,
             algorithm_name=algorithm_name,
