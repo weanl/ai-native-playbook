@@ -9,6 +9,12 @@ from plotly.subplots import make_subplots
 from nextaiops_algo.core.table import FieldRole, Table
 from nextaiops_algo.pipeline.profile import anomaly_segments
 
+PLOTLY_INTERACTION_CONFIG: dict[str, object] = {
+    "displaylogo": False,
+    "scrollZoom": True,
+    "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+}
+
 
 def plot_timeseries(
     table: Table,
@@ -43,6 +49,8 @@ def plot_timeseries(
     timestamps = table.timestamps()
     timestamps_series = timestamps if timestamps is not None else pd.Series(range(len(table.df)))
     x_values = timestamps_series.reset_index(drop=True)
+    y_true = _aligned_true_labels(input_table, len(table.df))
+    y_pred = _predicted_labels(table)
 
     # Create subplots - one per original metric
     fig = make_subplots(
@@ -58,11 +66,22 @@ def plot_timeseries(
 
         # Original metric line
         y_values = table.df[metric].reset_index(drop=True)
-        y_true = _aligned_true_labels(input_table, len(table.df))
-        y_pred = _predicted_labels(table)
+        score_col = f"{metric}.anomaly_score"
+        score_values = (
+            table.df[score_col].reset_index(drop=True)
+            if score_col in table.df.columns
+            else pd.Series([None] * len(table.df))
+        )
+        line_customdata = pd.DataFrame(
+            {
+                "score": score_values,
+                "true": y_true if y_true is not None else pd.Series([None] * len(table.df)),
+                "pred": y_pred if y_pred is not None else pd.Series([None] * len(table.df)),
+            }
+        )
 
         if y_true is not None:
-            _add_ground_truth_bands(fig, x_values, y_true)
+            _add_ground_truth_bands(fig, x_values, y_true, row)
 
         fig.add_trace(
             go.Scatter(
@@ -70,7 +89,16 @@ def plot_timeseries(
                 y=y_values,
                 mode="lines",
                 name=metric,
-                line={"color": "blue"},
+                line={"color": "#2563eb", "width": 2},
+                customdata=line_customdata,
+                hovertemplate=(
+                    "x=%{x}<br>"
+                    "value=%{y:.4g}<br>"
+                    "score=%{customdata[0]:.4g}<br>"
+                    "true=%{customdata[1]}<br>"
+                    "pred=%{customdata[2]}"
+                    f"<extra>{metric}</extra>"
+                ),
             ),
             row=row,
             col=1,
@@ -87,7 +115,8 @@ def plot_timeseries(
                     y=table.df[upper_col].reset_index(drop=True),
                     mode="lines",
                     name=f"{metric} upper",
-                    line={"color": "green", "dash": "dash"},
+                    line={"color": "#059669", "dash": "dash", "width": 1.5},
+                    hovertemplate="x=%{x}<br>upper=%{y:.4g}<extra>Upper threshold</extra>",
                 ),
                 row=row,
                 col=1,
@@ -100,7 +129,8 @@ def plot_timeseries(
                     y=table.df[lower_col].reset_index(drop=True),
                     mode="lines",
                     name=f"{metric} lower",
-                    line={"color": "green", "dash": "dash"},
+                    line={"color": "#059669", "dash": "dash", "width": 1.5},
+                    hovertemplate="x=%{x}<br>lower=%{y:.4g}<extra>Lower threshold</extra>",
                 ),
                 row=row,
                 col=1,
@@ -116,13 +146,27 @@ def plot_timeseries(
         height=300 * len(original_metrics),
         title_text="Time Series Anomaly Detection",
         showlegend=True,
+        hovermode="x unified",
+        template="plotly_white",
+        plot_bgcolor="#f8fafc",
+        paper_bgcolor="#ffffff",
+        margin={"l": 48, "r": 24, "t": 64, "b": 48},
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
     )
 
     # Update x-axis labels
     x_axis_title = "Timestamp" if timestamps is not None else "Index"
-    fig.update_xaxes(title_text=x_axis_title)
+    fig.update_xaxes(
+        title_text=x_axis_title,
+        showspikes=True,
+        spikemode="across",
+        spikesnap="cursor",
+        spikecolor="#64748b",
+        spikethickness=1,
+    )
+    fig.update_yaxes(gridcolor="#e2e8f0")
 
-    html: str = fig.to_html(include_plotlyjs=True)
+    html: str = fig.to_html(include_plotlyjs=True, config=PLOTLY_INTERACTION_CONFIG)
 
     if output_path is not None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -148,7 +192,12 @@ def _aligned_true_labels(input_table: Table | None, expected_len: int) -> pd.Ser
     return labels.reset_index(drop=True).fillna(0).astype(int)
 
 
-def _add_ground_truth_bands(fig: go.Figure, x_values: pd.Series, y_true: pd.Series) -> None:
+def _add_ground_truth_bands(
+    fig: go.Figure,
+    x_values: pd.Series,
+    y_true: pd.Series,
+    row: int,
+) -> None:
     """Add translucent bands for ground-truth anomaly segments."""
     for start, end in anomaly_segments(y_true.tolist()):
         fig.add_vrect(
@@ -158,6 +207,8 @@ def _add_ground_truth_bands(fig: go.Figure, x_values: pd.Series, y_true: pd.Seri
             opacity=0.12,
             line_width=0,
             layer="below",
+            row=row,
+            col=1,
         )
 
 
@@ -198,7 +249,7 @@ def _add_classification_markers(
                     ),
                     hovertemplate=(
                         "x=%{x}<br>"
-                        "value=%{y}<br>"
+                        "value=%{y:.4g}<br>"
                         "true=%{customdata[0]}<br>"
                         "pred=%{customdata[1]}<br>"
                         f"class={label}<extra>{label}</extra>"
@@ -225,7 +276,8 @@ def _add_predicted_markers(
                 y=y_values[anomaly_mask],
                 mode="markers",
                 name="Anomaly",
-                marker={"color": "red", "size": 10, "symbol": "circle"},
+                marker={"color": "#dc2626", "size": 10, "symbol": "circle"},
+                hovertemplate="x=%{x}<br>value=%{y:.4g}<extra>Anomaly</extra>",
             ),
             row=row,
             col=1,
