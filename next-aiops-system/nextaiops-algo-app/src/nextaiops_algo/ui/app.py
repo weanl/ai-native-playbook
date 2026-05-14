@@ -595,6 +595,8 @@ def _render_batch_experiment(
     if not upload_ok:
         st.info("请先在侧边栏选择或上传数据。已有批量实验结果会继续保留在下方。")
 
+    _render_batch_run_notice()
+
     st.subheader("选择算法")
     batch_controls_disabled = _is_batch_run_in_progress()
     select_all = st.checkbox("全选", value=True, disabled=batch_controls_disabled)
@@ -705,7 +707,10 @@ def _render_batch_experiment(
                         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     }
                     st.session_state.pop("last_batch_bundle", None)
-                    st.success(f"批量实验完成! batch_id={batch.batch_id}, 状态={batch.status.value}")
+                    st.session_state["batch_run_notice"] = (
+                        "success",
+                        f"批量实验完成! batch_id={batch.batch_id}, 状态={batch.status.value}",
+                    )
             else:
                 progress_bar = st.progress(0.0)
                 progress_text = st.empty()
@@ -736,15 +741,17 @@ def _render_batch_experiment(
                     st.session_state["last_batch_bundle"] = batch_bundle
                     st.session_state["batch_input_bundle"] = run_bundle_snapshot
                     st.session_state.pop("last_batch", None)
-                    st.success(
+                    st.session_state["batch_run_notice"] = (
+                        "success",
                         f"批量数据集实验完成! id={batch_bundle.batch_bundle_id}, "
-                        f"状态={batch_bundle.status.value}"
+                        f"状态={batch_bundle.status.value}",
                     )
         except Exception as e:
-            st.error(f"批量实验失败：{e}")
+            st.session_state["batch_run_notice"] = ("error", f"批量实验失败：{e}")
         finally:
             st.session_state["batch_run_in_progress"] = False
             st.session_state.pop("batch_run_payload", None)
+            st.rerun()
 
     _render_existing_batch_results(
         render_leaderboard=render_leaderboard,
@@ -756,6 +763,18 @@ def _render_batch_experiment(
         build_file_batch_view=build_file_batch_view,
     )
     _render_batch_history(render_leaderboard=render_leaderboard, render_heatmap=render_heatmap)
+
+
+def _render_batch_run_notice() -> None:
+    """Render and clear the latest batch run completion notice."""
+    notice = st.session_state.pop("batch_run_notice", None)
+    if notice is None:
+        return
+    level, message = cast(tuple[str, str], notice)
+    if level == "success":
+        st.success(message)
+    else:
+        st.error(message)
 
 
 def _default_batch_experiment_name(
