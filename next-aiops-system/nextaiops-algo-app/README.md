@@ -260,7 +260,7 @@ TSB-UAD 各算法的评分接口不一致，适配器采用 **per-model scoring 
 
 ## 10. 项目状态
 
-- **当前阶段**：M1（批量实验能力），见 [docs/PLAN.md](docs/PLAN.md)
+- **当前阶段**：M1.6 已完成（批量实验工作台增强），见 [docs/PLAN.md](docs/PLAN.md)
 - **M0 已完成**：端到端最小闭环（3-Sigma + IQR + Streamlit demo + CLI）
 - **M1 已完成**：
   - 评估指标扩充（PA-F1 / PA-Precision / PA-Recall）
@@ -269,6 +269,17 @@ TSB-UAD 各算法的评分接口不一致，适配器采用 **per-model scoring 
   - 批量实验引擎 + CLI batch/list-batches
   - 可视化三件套（排行榜 / 时序叠加对比 / 热力图）
   - Streamlit 批量实验页面
+- **M1.5 已完成**：
+  - 单算法实验参数表单与参数生效链路
+  - 数据预览、数据画像与真实异常标签展示
+  - 检测结果解释（TP / FP / FN / TN、异常段命中）
+  - DatasetBundle 多文件 / zip 单算法实验
+- **M1.6 已完成**：
+  - DatasetBundle 多文件 / zip 批量实验
+  - 算法 × 文件二维运行矩阵
+  - 批量 bundle summary artifacts
+  - 批量排行榜 / 文件矩阵 / 热力图 / 单文件钻取
+  - 批量运行期间锁定输入与预览控件，完成后自动解锁
 - **M2+**：MLflow 迁移、模型导出、AutoML 探索
 
 ## 11. 开发者指南
@@ -277,7 +288,7 @@ TSB-UAD 各算法的评分接口不一致，适配器采用 **per-model scoring 
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | AI 协作完整规约（必读） |
 | [CLAUDE.md](CLAUDE.md) | Claude Code 会话入口 |
-| [docs/PLAN.md](docs/PLAN.md) | M0 + M1 任务拆解（PR-1 ~ PR-7） |
+| [docs/PLAN.md](docs/PLAN.md) | M0 ~ M1.6 任务拆解与 M2 候选 |
 | [docs/NextAIOpsSystem.md](docs/NextAIOpsSystem.md) | 系统总览与子系统关系 |
 | [docs/adr/](docs/adr/) | 架构决策记录 |
 | [changes/](changes/) | OpenSpec 风格变更提案（M1 启用） |
