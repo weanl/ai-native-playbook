@@ -9,6 +9,12 @@ from plotly.subplots import make_subplots
 from nextaiops_algo.core.table import FieldRole, Table
 from nextaiops_algo.pipeline.profile import anomaly_segments
 
+PLOTLY_INTERACTION_CONFIG: dict[str, object] = {
+    "displaylogo": False,
+    "scrollZoom": True,
+    "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+}
+
 
 def plot_timeseries(
     table: Table,
@@ -150,10 +156,17 @@ def plot_timeseries(
 
     # Update x-axis labels
     x_axis_title = "Timestamp" if timestamps is not None else "Index"
-    fig.update_xaxes(title_text=x_axis_title, showspikes=True)
+    fig.update_xaxes(
+        title_text=x_axis_title,
+        showspikes=True,
+        spikemode="across",
+        spikesnap="cursor",
+        spikecolor="#64748b",
+        spikethickness=1,
+    )
     fig.update_yaxes(gridcolor="#e2e8f0")
 
-    html: str = fig.to_html(include_plotlyjs=True)
+    html: str = fig.to_html(include_plotlyjs=True, config=PLOTLY_INTERACTION_CONFIG)
 
     if output_path is not None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
