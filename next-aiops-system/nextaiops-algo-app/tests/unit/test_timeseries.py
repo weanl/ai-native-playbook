@@ -152,6 +152,7 @@ class TestPlotTimeseries:
         assert "x unified" in html
         assert "showspikes" in html
         assert "spikemode" in html
+        assert '"fixedrange":true' in html
         assert '"orientation":"h"' in html
         assert "#f8fafc" in html
 

@@ -74,6 +74,7 @@ def test_render_data_preview_uses_interactive_layout() -> None:
 
     assert fig.layout.hovermode == "x unified"
     assert fig.layout.plot_bgcolor == "#f8fafc"
+    assert fig.layout.yaxis.fixedrange is True
 
 
 def test_render_data_preview_rejects_unknown_metric() -> None:

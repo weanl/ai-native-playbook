@@ -164,7 +164,7 @@ def plot_timeseries(
         spikecolor="#64748b",
         spikethickness=1,
     )
-    fig.update_yaxes(gridcolor="#e2e8f0")
+    fig.update_yaxes(gridcolor="#e2e8f0", fixedrange=True)
 
     html: str = fig.to_html(include_plotlyjs=True, config=PLOTLY_INTERACTION_CONFIG)
 
