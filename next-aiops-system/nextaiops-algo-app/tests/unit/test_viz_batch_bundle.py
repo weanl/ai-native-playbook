@@ -58,6 +58,8 @@ def _make_result(tmp_path: Path) -> BatchBundleResult:
     ]
     return BatchBundleResult(
         batch_bundle_id="bb1",
+        experiment_name="Bundle comparison",
+        description="",
         dataset_id="bundle",
         algorithm_names=["three_sigma", "iqr"],
         file_names=["a.csv", "b.csv"],

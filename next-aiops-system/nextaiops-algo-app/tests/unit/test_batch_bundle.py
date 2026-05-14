@@ -57,6 +57,8 @@ def test_run_batch_bundle_returns_one_cell_per_algorithm_and_file(
     )
 
     assert result.dataset_id == "bundle"
+    assert result.experiment_name
+    assert result.description == ""
     assert result.status == BatchStatus.COMPLETED
     assert len(result.cells) == 4
     assert all(cell.status == RunStatus.COMPLETED for cell in result.cells)
@@ -69,8 +71,50 @@ def test_run_batch_bundle_returns_one_cell_per_algorithm_and_file(
     assert summary_path.exists()
     summary = json.loads(summary_path.read_text())
     assert summary["dataset_id"] == "bundle"
+    assert summary["experiment_name"] == result.experiment_name
+    assert summary["description"] == ""
     assert summary["algorithm_names"] == ["three_sigma", "iqr"]
     assert len(summary["cells"]) == 4
+
+
+def test_run_batch_bundle_uses_custom_experiment_name_and_description(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Experiment display metadata is returned and persisted in summary artifacts."""
+    bundle = load_dataset_bundle([_write_csv(tmp_path / "a.csv")], dataset_id="bundle")
+
+    def fake_run_experiment(
+        dataset_path: str | Path,
+        algorithm_name: str,
+        params: dict[str, object] | None = None,
+        output_dir: Path | None = None,
+        split_ratio: float = 0.7,
+    ) -> RunResult:
+        del dataset_path, algorithm_name, params, output_dir, split_ratio
+        return RunResult(
+            run_id="run_1",
+            metrics={"f1": 0.5, "pa_f1": 0.75},
+            artifacts_path=str(tmp_path / "run"),
+        )
+
+    monkeypatch.setattr("nextaiops_algo.pipeline.batch_bundle.run_experiment", fake_run_experiment)
+
+    result = run_batch_bundle(
+        bundle=bundle,
+        algorithms=["three_sigma"],
+        output_dir=tmp_path / "artifacts",
+        experiment_name="Nightly bundle comparison",
+        description="Compare default statistical baselines.",
+    )
+
+    assert result.experiment_name == "Nightly bundle comparison"
+    assert result.description == "Compare default statistical baselines."
+
+    summary_path = Path(result.artifacts_path) / "batch_bundle_summary.json"
+    summary = json.loads(summary_path.read_text())
+    assert summary["experiment_name"] == "Nightly bundle comparison"
+    assert summary["description"] == "Compare default statistical baselines."
 
 
 def test_run_batch_bundle_marks_unknown_algorithm_failed(tmp_path: Path) -> None:

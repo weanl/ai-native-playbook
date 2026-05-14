@@ -4,6 +4,7 @@ import json
 import uuid
 from collections import defaultdict
 from collections.abc import Callable, Sequence
+from datetime import datetime
 from pathlib import Path
 from statistics import median
 from typing import Literal
@@ -32,6 +33,8 @@ class BatchBundleResult(BaseModel):
     """Aggregated result for a multi-algorithm DatasetBundle experiment."""
 
     batch_bundle_id: str
+    experiment_name: str
+    description: str
     dataset_id: str
     algorithm_names: list[str]
     file_names: list[str]
@@ -48,6 +51,8 @@ def run_batch_bundle(
     params_override: dict[str, dict[str, object]] | None = None,
     output_dir: Path | None = None,
     split_ratio: float = 0.7,
+    experiment_name: str | None = None,
+    description: str = "",
     progress_callback: BatchBundleProgress | None = None,
 ) -> BatchBundleResult:
     """Run multiple algorithms independently for each file in a DatasetBundle.
@@ -58,6 +63,9 @@ def run_batch_bundle(
         params_override: Per-algorithm parameter overrides.
         output_dir: Base directory for artifacts. If None, uses default.
         split_ratio: Fraction for training data.
+        experiment_name: Optional display name. If omitted, a time/data/algorithm
+            scoped name is generated.
+        description: Optional human-readable experiment description.
         progress_callback: Optional callback receiving current index, total count,
             algorithm name, and file name before each cell starts.
 
@@ -66,6 +74,7 @@ def run_batch_bundle(
     """
     algorithm_names = sorted(REGISTRY.keys()) if algorithms == "__all__" else list(algorithms)
     batch_bundle_id = uuid.uuid4().hex[:12]
+    display_name = experiment_name or _default_experiment_name(bundle, algorithm_names)
     cells: list[BatchBundleCellResult] = []
     total_cells = len(algorithm_names) * bundle.file_count
 
@@ -126,10 +135,14 @@ def run_batch_bundle(
         algorithm_metrics=algorithm_metrics,
         file_metrics=file_metrics,
         output_dir=output_dir,
+        experiment_name=display_name,
+        description=description,
     )
 
     return BatchBundleResult(
         batch_bundle_id=batch_bundle_id,
+        experiment_name=display_name,
+        description=description,
         dataset_id=bundle.dataset_id,
         algorithm_names=algorithm_names,
         file_names=[dataset_file.name for dataset_file in bundle.files],
@@ -225,6 +238,8 @@ def _write_batch_bundle_summary(
     algorithm_metrics: dict[str, dict[str, float]],
     file_metrics: dict[str, dict[str, float]],
     output_dir: Path | None,
+    experiment_name: str,
+    description: str,
 ) -> Path:
     base_dir = output_dir if output_dir is not None else Path.home() / ".nextaiops_algo" / "runs"
     artifacts_path = base_dir / f"batch_bundle_{batch_bundle_id}"
@@ -232,6 +247,8 @@ def _write_batch_bundle_summary(
 
     summary = {
         "batch_bundle_id": batch_bundle_id,
+        "experiment_name": experiment_name,
+        "description": description,
         "dataset_id": bundle.dataset_id,
         "file_count": bundle.file_count,
         "algorithm_names": list(algorithm_names),
@@ -259,3 +276,12 @@ def _write_batch_bundle_summary(
         encoding="utf-8",
     )
     return artifacts_path
+
+
+def _default_experiment_name(bundle: DatasetBundle, algorithm_names: Sequence[str]) -> str:
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M")
+    if len(algorithm_names) <= 3:
+        algorithm_scope = ",".join(algorithm_names)
+    else:
+        algorithm_scope = f"{algorithm_names[0]}+{len(algorithm_names) - 1}"
+    return f"{timestamp} · {bundle.dataset_id} · {algorithm_scope}"

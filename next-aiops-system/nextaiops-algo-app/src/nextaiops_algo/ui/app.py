@@ -2,6 +2,7 @@
 
 import json
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -544,10 +545,6 @@ def _render_batch_experiment(
     input_bundle: DatasetBundle | None,
 ) -> None:
     """Render batch experiment page with leaderboard, overlay, heatmap tabs."""
-    if not upload_ok:
-        st.info("请先在侧边栏选择或上传数据")
-        return
-
     st.header("批量实验")
 
     from nextaiops_algo.algorithms.registry import REGISTRY
@@ -568,6 +565,9 @@ def _render_batch_experiment(
         st.warning("无可用算法")
         return
 
+    if not upload_ok:
+        st.info("请先在侧边栏选择或上传数据。已有批量实验结果会继续保留在下方。")
+
     st.subheader("选择算法")
     select_all = st.checkbox("全选", value=True)
 
@@ -578,6 +578,16 @@ def _render_batch_experiment(
 
     if not selected_algos:
         st.warning("请至少选择一个算法")
+        _render_existing_batch_results(
+            render_leaderboard=render_leaderboard,
+            render_heatmap=render_heatmap,
+            render_overlay=render_overlay,
+            render_bundle_algorithm_leaderboard=render_bundle_algorithm_leaderboard,
+            render_bundle_file_matrix=render_bundle_file_matrix,
+            render_bundle_heatmap=render_bundle_heatmap,
+            build_file_batch_view=build_file_batch_view,
+        )
+        _render_batch_history(render_leaderboard=render_leaderboard, render_heatmap=render_heatmap)
         return
 
     if input_bundle is not None:
@@ -595,19 +605,49 @@ def _render_batch_experiment(
     if not has_tsbuad:
         st.info("安装 `nextaiops-algo[tsbuad]` 可解锁更多算法 (IForest, LOF, OCSVM, PCA, HBOS)")
 
-    if st.button("开始批量实验", type="primary"):
+    default_name = _default_batch_experiment_name(
+        data_source=data_source,
+        input_bundle=input_bundle,
+        selected_algos=selected_algos,
+    )
+    experiment_name = st.text_input(
+        "实验名称",
+        value=default_name,
+        help="建议保留时间、数据和算法范围，方便在多次批量实验之间区分。",
+        key="batch_experiment_name",
+    )
+    experiment_description = st.text_area(
+        "实验描述",
+        value="",
+        height=80,
+        help="可记录本次实验目的、数据选择原因或参数假设。",
+        key="batch_experiment_description",
+    )
+
+    run_disabled = not upload_ok
+    if st.button("开始批量实验", type="primary", disabled=run_disabled):
         try:
             if input_bundle is None:
+                run_table_snapshot = input_table
+                run_data_source = data_source
                 with st.spinner(f"批量运行 {len(selected_algos)} 个算法..."):
                     batch = run_batch(
-                        dataset=data_source,
+                        dataset=run_data_source,
                         algorithms=selected_algos,
                     )
                     st.session_state["last_batch"] = batch
-                    st.session_state["batch_input_table"] = input_table
+                    st.session_state["batch_input_table"] = run_table_snapshot
+                    st.session_state["last_batch_meta"] = {
+                        "experiment_name": experiment_name.strip() or default_name,
+                        "description": experiment_description.strip(),
+                        "data_source": run_data_source,
+                        "algorithm_scope": ", ".join(selected_algos),
+                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    }
                     st.session_state.pop("last_batch_bundle", None)
                     st.success(f"批量实验完成! batch_id={batch.batch_id}, 状态={batch.status.value}")
             else:
+                run_bundle_snapshot = input_bundle
                 progress_bar = st.progress(0.0)
                 progress_text = st.empty()
 
@@ -624,8 +664,10 @@ def _render_batch_experiment(
 
                 with st.spinner(f"批量运行 {task_count} 个实验单元..."):
                     batch_bundle = run_batch_bundle(
-                        bundle=input_bundle,
+                        bundle=run_bundle_snapshot,
                         algorithms=selected_algos,
+                        experiment_name=experiment_name.strip() or default_name,
+                        description=experiment_description.strip(),
                         progress_callback=update_batch_bundle_progress,
                     )
                     progress_bar.progress(1.0)
@@ -633,7 +675,7 @@ def _render_batch_experiment(
                         f"已完成 {len(batch_bundle.cells)}/{task_count} 个实验单元"
                     )
                     st.session_state["last_batch_bundle"] = batch_bundle
-                    st.session_state["batch_input_bundle"] = input_bundle
+                    st.session_state["batch_input_bundle"] = run_bundle_snapshot
                     st.session_state.pop("last_batch", None)
                     st.success(
                         f"批量数据集实验完成! id={batch_bundle.batch_bundle_id}, "
@@ -642,6 +684,43 @@ def _render_batch_experiment(
         except Exception as e:
             st.error(f"批量实验失败：{e}")
 
+    _render_existing_batch_results(
+        render_leaderboard=render_leaderboard,
+        render_heatmap=render_heatmap,
+        render_overlay=render_overlay,
+        render_bundle_algorithm_leaderboard=render_bundle_algorithm_leaderboard,
+        render_bundle_file_matrix=render_bundle_file_matrix,
+        render_bundle_heatmap=render_bundle_heatmap,
+        build_file_batch_view=build_file_batch_view,
+    )
+    _render_batch_history(render_leaderboard=render_leaderboard, render_heatmap=render_heatmap)
+
+
+def _default_batch_experiment_name(
+    data_source: str,
+    input_bundle: DatasetBundle | None,
+    selected_algos: list[str],
+) -> str:
+    """Build a readable default batch experiment name."""
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M")
+    dataset_label = input_bundle.dataset_id if input_bundle is not None else Path(data_source).name
+    if len(selected_algos) <= 3:
+        algorithm_scope = ",".join(selected_algos)
+    else:
+        algorithm_scope = f"{selected_algos[0]}+{len(selected_algos) - 1}"
+    return f"{timestamp} · {dataset_label} · {algorithm_scope}"
+
+
+def _render_existing_batch_results(
+    render_leaderboard: Any,
+    render_heatmap: Any,
+    render_overlay: Any,
+    render_bundle_algorithm_leaderboard: Any,
+    render_bundle_file_matrix: Any,
+    render_bundle_heatmap: Any,
+    build_file_batch_view: Any,
+) -> None:
+    """Render the latest batch result independently from the current preview input."""
     if "last_batch_bundle" in st.session_state:
         batch_bundle = cast(BatchBundleResult, st.session_state["last_batch_bundle"])
         batch_input_bundle = cast(DatasetBundle | None, st.session_state.get("batch_input_bundle"))
@@ -657,6 +736,18 @@ def _render_batch_experiment(
     elif "last_batch" in st.session_state:
         batch = st.session_state["last_batch"]
         batch_input = st.session_state.get("batch_input_table")
+        batch_meta = cast(dict[str, str], st.session_state.get("last_batch_meta", {}))
+
+        if batch_meta:
+            st.subheader("批量实验结果")
+            st.caption(
+                f"{batch_meta.get('experiment_name', batch.batch_id)} · "
+                f"数据: {batch_meta.get('data_source', batch.dataset_source)} · "
+                f"算法: {batch_meta.get('algorithm_scope', ', '.join(batch.algorithm_names))} · "
+                f"时间: {batch_meta.get('created_at', '')}"
+            )
+            if batch_meta.get("description"):
+                st.info(batch_meta["description"])
 
         tab1, tab2, tab3 = st.tabs(["排行榜", "时序叠加对比", "热力图"])
 
@@ -677,6 +768,9 @@ def _render_batch_experiment(
             hm_fig = render_heatmap(batch, store=store)
             st.plotly_chart(hm_fig, width="stretch", config=_plotly_config())
 
+
+def _render_batch_history(render_leaderboard: Any, render_heatmap: Any) -> None:
+    """Render persisted single-file batch history."""
     st.subheader("查看历史批量实验")
     store = SqliteTrackingStore()
     batches = store.list_batches(limit=20)
@@ -720,9 +814,12 @@ def _render_batch_bundle_result(
     """Render DatasetBundle batch result with matrix-oriented drill-downs."""
     st.subheader("批量数据集结果")
     st.caption(
-        f"id: {batch_bundle.batch_bundle_id} · dataset: {batch_bundle.dataset_id} · "
+        f"{batch_bundle.experiment_name} · id: {batch_bundle.batch_bundle_id} · "
+        f"dataset: {batch_bundle.dataset_id} · "
         f"状态: {batch_bundle.status.value} · summary: {batch_bundle.artifacts_path}"
     )
+    if batch_bundle.description:
+        st.info(batch_bundle.description)
 
     summary_cols = st.columns(4)
     summary_cols[0].metric("算法数", len(batch_bundle.algorithm_names))
