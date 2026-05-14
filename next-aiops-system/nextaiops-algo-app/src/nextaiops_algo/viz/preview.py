@@ -89,7 +89,7 @@ def render_data_preview(table: Table, metric_name: str | None = None) -> go.Figu
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
     )
     fig.update_xaxes(title_text="Timestamp" if timestamps is not None else "Index", showspikes=True)
-    fig.update_yaxes(title_text=selected_metric, gridcolor="#e2e8f0")
+    fig.update_yaxes(title_text=selected_metric, gridcolor="#e2e8f0", fixedrange=True)
 
     return fig
 
