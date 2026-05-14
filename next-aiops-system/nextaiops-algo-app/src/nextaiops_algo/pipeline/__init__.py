@@ -4,6 +4,7 @@ This module provides the orchestration layer for NextAIOpsAlgoApp:
 - preprocess: CSV → Table conversion + time-series split
 - run: run_experiment main entry point
 - batch: run_batch for multi-algorithm experiments
+- batch_bundle: run_batch_bundle for multi-algorithm DatasetBundle experiments
 - dataset_bundle: multi-file dataset loading with schema consistency checks
 - evaluate: Metrics calculation (precision/recall/F1)
 
@@ -12,6 +13,7 @@ it accesses algorithms via algorithms.registry.REGISTRY only.
 """
 
 from .batch import run_batch
+from .batch_bundle import BatchBundleResult, run_batch_bundle
 from .dataset_bundle import DatasetBundle, DatasetFile, load_dataset_bundle
 from .evaluate import evaluate
 from .preprocess import (
@@ -25,6 +27,7 @@ from .run_bundle import BundleRunResult, run_bundle_experiment
 
 __all__ = [
     "BundleRunResult",
+    "BatchBundleResult",
     "DatasetBundle",
     "DatasetFile",
     "evaluate",
@@ -33,6 +36,7 @@ __all__ = [
     "read_dataset_bundle_from_zip",
     "read_to_table",
     "run_batch",
+    "run_batch_bundle",
     "run_bundle_experiment",
     "run_experiment",
     "split_by_time",

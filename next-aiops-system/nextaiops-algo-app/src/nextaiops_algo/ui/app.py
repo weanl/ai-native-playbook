@@ -11,8 +11,10 @@ import streamlit as st
 from nextaiops_algo.algorithms.params import AlgorithmParamSpec, format_experiment_label
 from nextaiops_algo.algorithms.registry import get_algorithm_param_specs, list_algorithms
 from nextaiops_algo.core.exceptions import SchemaValidationError
+from nextaiops_algo.core.experiment import RunStatus
 from nextaiops_algo.core.table import FieldRole, Table
 from nextaiops_algo.datasets.registry import get_builtin, list_builtin
+from nextaiops_algo.pipeline.batch_bundle import BatchBundleResult
 from nextaiops_algo.pipeline.dataset_bundle import DatasetBundle
 from nextaiops_algo.pipeline.preprocess import (
     read_csv_to_table,
@@ -545,14 +547,18 @@ def _render_batch_experiment(
     if not upload_ok:
         st.info("请先在侧边栏选择或上传数据")
         return
-    if input_bundle is not None:
-        st.info("批量实验暂不支持 DatasetBundle；请切回单文件数据源后运行批量实验。")
-        return
 
     st.header("批量实验")
 
     from nextaiops_algo.algorithms.registry import REGISTRY
     from nextaiops_algo.pipeline.batch import run_batch
+    from nextaiops_algo.pipeline.batch_bundle import run_batch_bundle
+    from nextaiops_algo.viz.batch_bundle import (
+        build_file_batch_view,
+        render_bundle_algorithm_leaderboard,
+        render_bundle_file_matrix,
+        render_bundle_heatmap,
+    )
     from nextaiops_algo.viz.heatmap import render_heatmap
     from nextaiops_algo.viz.leaderboard import render_leaderboard
     from nextaiops_algo.viz.overlay import render_overlay
@@ -574,25 +580,81 @@ def _render_batch_experiment(
         st.warning("请至少选择一个算法")
         return
 
+    if input_bundle is not None:
+        task_count = len(selected_algos) * input_bundle.file_count
+        st.caption(
+            f"DatasetBundle：{input_bundle.dataset_id} · "
+            f"{input_bundle.file_count} 个文件 · {len(selected_algos)} 个算法 · "
+            f"{task_count} 个实验单元"
+        )
+    else:
+        st.caption(f"单文件批量：{len(selected_algos)} 个算法")
+
     tsbuad_algos = ["iforest", "lof", "ocsvm", "pca", "hbos"]
     has_tsbuad = any(a in algo_names for a in tsbuad_algos)
     if not has_tsbuad:
         st.info("安装 `nextaiops-algo[tsbuad]` 可解锁更多算法 (IForest, LOF, OCSVM, PCA, HBOS)")
 
     if st.button("开始批量实验", type="primary"):
-        with st.spinner(f"批量运行 {len(selected_algos)} 个算法..."):
-            try:
-                batch = run_batch(
-                    dataset=data_source,
-                    algorithms=selected_algos,
-                )
-                st.session_state["last_batch"] = batch
-                st.session_state["batch_input_table"] = input_table
-                st.success(f"批量实验完成! batch_id={batch.batch_id}, 状态={batch.status.value}")
-            except Exception as e:
-                st.error(f"批量实验失败：{e}")
+        try:
+            if input_bundle is None:
+                with st.spinner(f"批量运行 {len(selected_algos)} 个算法..."):
+                    batch = run_batch(
+                        dataset=data_source,
+                        algorithms=selected_algos,
+                    )
+                    st.session_state["last_batch"] = batch
+                    st.session_state["batch_input_table"] = input_table
+                    st.session_state.pop("last_batch_bundle", None)
+                    st.success(f"批量实验完成! batch_id={batch.batch_id}, 状态={batch.status.value}")
+            else:
+                progress_bar = st.progress(0.0)
+                progress_text = st.empty()
 
-    if "last_batch" in st.session_state:
+                def update_batch_bundle_progress(
+                    index: int,
+                    total: int,
+                    algorithm_name: str,
+                    file_name: str,
+                ) -> None:
+                    progress_bar.progress((index - 1) / total)
+                    progress_text.caption(
+                        f"正在运行 {index}/{total}：{algorithm_name} × {file_name}"
+                    )
+
+                with st.spinner(f"批量运行 {task_count} 个实验单元..."):
+                    batch_bundle = run_batch_bundle(
+                        bundle=input_bundle,
+                        algorithms=selected_algos,
+                        progress_callback=update_batch_bundle_progress,
+                    )
+                    progress_bar.progress(1.0)
+                    progress_text.caption(
+                        f"已完成 {len(batch_bundle.cells)}/{task_count} 个实验单元"
+                    )
+                    st.session_state["last_batch_bundle"] = batch_bundle
+                    st.session_state["batch_input_bundle"] = input_bundle
+                    st.session_state.pop("last_batch", None)
+                    st.success(
+                        f"批量数据集实验完成! id={batch_bundle.batch_bundle_id}, "
+                        f"状态={batch_bundle.status.value}"
+                    )
+        except Exception as e:
+            st.error(f"批量实验失败：{e}")
+
+    if "last_batch_bundle" in st.session_state:
+        batch_bundle = cast(BatchBundleResult, st.session_state["last_batch_bundle"])
+        batch_input_bundle = cast(DatasetBundle | None, st.session_state.get("batch_input_bundle"))
+        _render_batch_bundle_result(
+            batch_bundle=batch_bundle,
+            input_bundle=batch_input_bundle,
+            render_bundle_algorithm_leaderboard=render_bundle_algorithm_leaderboard,
+            render_bundle_file_matrix=render_bundle_file_matrix,
+            render_bundle_heatmap=render_bundle_heatmap,
+            build_file_batch_view=build_file_batch_view,
+            render_overlay=render_overlay,
+        )
+    elif "last_batch" in st.session_state:
         batch = st.session_state["last_batch"]
         batch_input = st.session_state.get("batch_input_table")
 
@@ -606,14 +668,14 @@ def _render_batch_experiment(
         with tab2:
             if batch_input is not None:
                 fig = render_overlay(batch, batch_input)
-                st.plotly_chart(fig, width="stretch")
+                st.plotly_chart(fig, width="stretch", config=_plotly_config())
             else:
                 st.warning("原始数据不可用，无法渲染时序叠加")
 
         with tab3:
             store = SqliteTrackingStore()
             hm_fig = render_heatmap(batch, store=store)
-            st.plotly_chart(hm_fig, width="stretch")
+            st.plotly_chart(hm_fig, width="stretch", config=_plotly_config())
 
     st.subheader("查看历史批量实验")
     store = SqliteTrackingStore()
@@ -641,9 +703,99 @@ def _render_batch_experiment(
 
         with tab3:
             hm_fig = render_heatmap(selected_batch, store=store)
-            st.plotly_chart(hm_fig, width="stretch")
+            st.plotly_chart(hm_fig, width="stretch", config=_plotly_config())
     else:
         st.info("暂无历史批量实验记录")
+
+
+def _render_batch_bundle_result(
+    batch_bundle: BatchBundleResult,
+    input_bundle: DatasetBundle | None,
+    render_bundle_algorithm_leaderboard: Any,
+    render_bundle_file_matrix: Any,
+    render_bundle_heatmap: Any,
+    build_file_batch_view: Any,
+    render_overlay: Any,
+) -> None:
+    """Render DatasetBundle batch result with matrix-oriented drill-downs."""
+    st.subheader("批量数据集结果")
+    st.caption(
+        f"id: {batch_bundle.batch_bundle_id} · dataset: {batch_bundle.dataset_id} · "
+        f"状态: {batch_bundle.status.value} · summary: {batch_bundle.artifacts_path}"
+    )
+
+    summary_cols = st.columns(4)
+    summary_cols[0].metric("算法数", len(batch_bundle.algorithm_names))
+    summary_cols[1].metric("文件数", len(batch_bundle.file_names))
+    summary_cols[2].metric(
+        "成功单元",
+        sum(1 for cell in batch_bundle.cells if cell.status == RunStatus.COMPLETED),
+    )
+    summary_cols[3].metric(
+        "失败单元",
+        sum(1 for cell in batch_bundle.cells if cell.status == RunStatus.FAILED),
+    )
+
+    tab1, tab2, tab3, tab4 = st.tabs(["总排行榜", "算法×文件矩阵", "文件钻取", "Cell 明细"])
+
+    with tab1:
+        leaderboard_df = render_bundle_algorithm_leaderboard(batch_bundle)
+        _render_filterable_dataframe(
+            leaderboard_df,
+            key=f"batch_bundle_leaderboard_{batch_bundle.batch_bundle_id}",
+        )
+
+    with tab2:
+        metric = st.selectbox(
+            "矩阵指标",
+            options=["pa_f1", "f1", "precision", "recall", "pa_precision", "pa_recall"],
+            key=f"batch_bundle_metric_{batch_bundle.batch_bundle_id}",
+        )
+        matrix_df = render_bundle_file_matrix(batch_bundle, metric=metric)
+        st.dataframe(matrix_df, width="stretch")
+        heatmap_fig = render_bundle_heatmap(batch_bundle, metric=metric)
+        st.plotly_chart(heatmap_fig, width="stretch", config=_plotly_config())
+
+    with tab3:
+        selected_file = st.selectbox(
+            "选择文件",
+            options=batch_bundle.file_names,
+            key=f"batch_bundle_file_{batch_bundle.batch_bundle_id}",
+        )
+        if input_bundle is None:
+            st.warning("当前会话没有保留原始 DatasetBundle，无法渲染文件叠加图。")
+        else:
+            selected_table = next(
+                dataset_file.table
+                for dataset_file in input_bundle.files
+                if dataset_file.name == selected_file
+            )
+            file_batch = build_file_batch_view(batch_bundle, selected_file)
+            if file_batch.runs:
+                overlay_fig = render_overlay(file_batch, selected_table)
+                st.plotly_chart(overlay_fig, width="stretch", config=_plotly_config())
+            else:
+                st.warning("该文件没有成功运行的算法，无法渲染叠加图。")
+
+    with tab4:
+        rows = []
+        for cell in batch_bundle.cells:
+            metrics = cell.run_result.metrics if cell.run_result is not None else {}
+            rows.append(
+                {
+                    "算法": cell.algorithm_name,
+                    "文件": cell.file_name,
+                    "状态": cell.status.value,
+                    "run_id": cell.run_result.run_id if cell.run_result is not None else "",
+                    "F1": round(metrics.get("f1", 0.0), 4) if metrics else None,
+                    "PA-F1": round(metrics.get("pa_f1", 0.0), 4) if metrics else None,
+                    "错误": cell.error_message or "",
+                }
+            )
+        _render_filterable_dataframe(
+            pd.DataFrame(rows),
+            key=f"batch_bundle_cells_{batch_bundle.batch_bundle_id}",
+        )
 
 
 def _render_history() -> None:
