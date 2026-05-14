@@ -1,5 +1,6 @@
 """Preprocessing utilities for data → Table conversion and splitting."""
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from nextaiops_algo.core.table import Table
@@ -8,6 +9,11 @@ from nextaiops_algo.datasets.loaders import (
 )
 from nextaiops_algo.datasets.loaders import (
     read_to_table as _read_to_table,
+)
+from nextaiops_algo.pipeline.dataset_bundle import (
+    DatasetBundle,
+    load_dataset_bundle,
+    load_dataset_bundle_from_zip,
 )
 
 
@@ -38,6 +44,23 @@ def read_to_table(path_or_name: str | Path) -> Table:
         Table loaded from the appropriate source.
     """
     return _read_to_table(path_or_name)
+
+
+def read_dataset_bundle(
+    paths: Sequence[str | Path],
+    dataset_id: str | None = None,
+) -> DatasetBundle:
+    """Load multiple files as one schema-consistent DatasetBundle."""
+    return load_dataset_bundle(paths, dataset_id=dataset_id)
+
+
+def read_dataset_bundle_from_zip(
+    zip_path: Path,
+    extract_dir: Path,
+    dataset_id: str | None = None,
+) -> DatasetBundle:
+    """Load supported files from a zip archive as a DatasetBundle."""
+    return load_dataset_bundle_from_zip(zip_path, extract_dir=extract_dir, dataset_id=dataset_id)
 
 
 def split_by_time(table: Table, ratio: float = 0.7) -> tuple[Table, Table]:

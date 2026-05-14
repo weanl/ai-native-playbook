@@ -3,7 +3,7 @@
 import json
 import tempfile
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pandas as pd
 import streamlit as st
@@ -14,9 +14,16 @@ from nextaiops_algo.algorithms.registry import get_algorithm_param_specs, list_a
 from nextaiops_algo.core.exceptions import SchemaValidationError
 from nextaiops_algo.core.table import FieldRole, Table
 from nextaiops_algo.datasets.registry import get_builtin, list_builtin
-from nextaiops_algo.pipeline.preprocess import read_csv_to_table, read_to_table
+from nextaiops_algo.pipeline.dataset_bundle import DatasetBundle
+from nextaiops_algo.pipeline.preprocess import (
+    read_csv_to_table,
+    read_dataset_bundle,
+    read_dataset_bundle_from_zip,
+    read_to_table,
+)
 from nextaiops_algo.pipeline.profile import TableProfile, profile_table
 from nextaiops_algo.pipeline.run import run_experiment
+from nextaiops_algo.pipeline.run_bundle import BundleRunResult, run_bundle_experiment
 from nextaiops_algo.storage.sqlite_tracking import SqliteTrackingStore
 from nextaiops_algo.viz.preview import render_data_preview
 
@@ -28,74 +35,127 @@ st.title("NextAIOpsAlgoApp — 智能运维算法平台")
 # ── Helper functions (defined before use) ────────────────────
 
 
-def _get_input_table() -> tuple[bool, Table | None, str]:
+def _get_input_table() -> tuple[bool, Table | None, str, DatasetBundle | None]:
     """Common data source selector shared by single and batch pages.
 
-    Returns (upload_ok, table, source_description).
+    Returns (upload_ok, table, source_description, optional_bundle).
     """
     data_source = st.sidebar.selectbox(
         "数据来源",
-        ["上传 CSV", "上传 .out", "上传 npy/npz"] + list_builtin(),
+        ["上传 CSV", "上传 .out", "上传 npy/npz", "上传 zip"] + list_builtin(),
     )
 
     if data_source == "上传 CSV":
-        uploaded_file = st.file_uploader("上传指标数据 CSV", type=["csv"], key="csv_upload")
-        if uploaded_file is None:
-            return False, None, ""
-        if (
-            "csv_path" not in st.session_state
-            or st.session_state.get("uploaded_name") != uploaded_file.name
-        ):
-            with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
-                tmp.write(uploaded_file.getvalue())
-                csv_tmp_path = Path(tmp.name)
-            st.session_state["csv_path"] = csv_tmp_path
-            st.session_state["uploaded_name"] = uploaded_file.name
-
-        csv_path: Path = st.session_state["csv_path"]
+        uploaded_files = st.file_uploader(
+            "上传指标数据 CSV",
+            type=["csv"],
+            accept_multiple_files=True,
+            key="csv_upload",
+        )
+        if not uploaded_files:
+            return False, None, "", None
+        upload_paths = _save_uploaded_files(cast(list[Any], uploaded_files), "csv_upload_paths")
         try:
-            table = read_csv_to_table(csv_path)
-            return True, table, str(csv_path)
+            if len(upload_paths) == 1:
+                table = read_csv_to_table(upload_paths[0])
+                return True, table, str(upload_paths[0]), None
+            bundle = read_dataset_bundle(upload_paths, dataset_id=_bundle_dataset_id(upload_paths))
+            return True, bundle.files[0].table, bundle.dataset_id, bundle
         except SchemaValidationError as e:
             st.error(f"数据格式校验失败：{e}")
-            return False, None, ""
+            return False, None, "", None
 
     elif data_source == "上传 .out":
-        uploaded_file = st.file_uploader("上传 TSB-UAD .out 文件", type=["out"], key="out_upload")
-        if uploaded_file is None:
-            return False, None, ""
-        with tempfile.NamedTemporaryFile(suffix=".out", delete=False) as tmp:
-            tmp.write(uploaded_file.getvalue())
-            out_path = Path(tmp.name)
+        uploaded_files = st.file_uploader(
+            "上传 TSB-UAD .out 文件",
+            type=["out"],
+            accept_multiple_files=True,
+            key="out_upload",
+        )
+        if not uploaded_files:
+            return False, None, "", None
+        upload_paths = _save_uploaded_files(cast(list[Any], uploaded_files), "out_upload_paths")
         try:
-            table = read_to_table(out_path)
-            return True, table, str(out_path)
+            if len(upload_paths) == 1:
+                table = read_to_table(upload_paths[0])
+                return True, table, str(upload_paths[0]), None
+            bundle = read_dataset_bundle(upload_paths, dataset_id=_bundle_dataset_id(upload_paths))
+            return True, bundle.files[0].table, bundle.dataset_id, bundle
         except SchemaValidationError as e:
             st.error(f"数据格式校验失败：{e}")
-            return False, None, ""
+            return False, None, "", None
 
     elif data_source == "上传 npy/npz":
-        uploaded_file = st.file_uploader("上传 npy/npz 文件", type=["npy", "npz"], key="npy_upload")
-        if uploaded_file is None:
-            return False, None, ""
-        suffix = Path(uploaded_file.name).suffix
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(uploaded_file.getvalue())
-            array_path = Path(tmp.name)
+        uploaded_files = st.file_uploader(
+            "上传 npy/npz 文件",
+            type=["npy", "npz"],
+            accept_multiple_files=True,
+            key="npy_upload",
+        )
+        if not uploaded_files:
+            return False, None, "", None
+        upload_paths = _save_uploaded_files(cast(list[Any], uploaded_files), "npy_upload_paths")
         try:
-            table = read_to_table(array_path)
-            return True, table, str(array_path)
+            if len(upload_paths) == 1:
+                table = read_to_table(upload_paths[0])
+                return True, table, str(upload_paths[0]), None
+            bundle = read_dataset_bundle(upload_paths, dataset_id=_bundle_dataset_id(upload_paths))
+            return True, bundle.files[0].table, bundle.dataset_id, bundle
         except SchemaValidationError as e:
             st.error(f"数据格式校验失败：{e}")
-            return False, None, ""
+            return False, None, "", None
+
+    elif data_source == "上传 zip":
+        uploaded_file = st.file_uploader("上传数据集 zip", type=["zip"], key="zip_upload")
+        if uploaded_file is None:
+            return False, None, "", None
+        zip_path = _save_uploaded_file(cast(Any, uploaded_file), "zip_upload_path")
+        extract_dir = Path(tempfile.mkdtemp(prefix="nextaiops_zip_"))
+        try:
+            bundle = read_dataset_bundle_from_zip(
+                zip_path,
+                extract_dir=extract_dir,
+                dataset_id=Path(uploaded_file.name).stem,
+            )
+            return True, bundle.files[0].table, bundle.dataset_id, bundle
+        except SchemaValidationError as e:
+            st.error(f"数据格式校验失败：{e}")
+            return False, None, "", None
 
     else:
         try:
             table = get_builtin(data_source).load()
-            return True, table, data_source
+            return True, table, data_source, None
         except Exception as e:
             st.error(f"加载内置数据集失败：{e}")
-            return False, None, ""
+            return False, None, "", None
+
+
+def _save_uploaded_files(uploaded_files: list[Any], state_key: str) -> list[Path]:
+    """Persist uploaded files under a stable temp directory for experiment runs."""
+    names = tuple(str(uploaded_file.name) for uploaded_file in uploaded_files)
+    names_key = f"{state_key}_names"
+    if state_key not in st.session_state or st.session_state.get(names_key) != names:
+        upload_dir = Path(tempfile.mkdtemp(prefix="nextaiops_upload_"))
+        paths = []
+        for uploaded_file in uploaded_files:
+            output_path = upload_dir / Path(str(uploaded_file.name)).name
+            output_path.write_bytes(uploaded_file.getvalue())
+            paths.append(output_path)
+        st.session_state[state_key] = paths
+        st.session_state[names_key] = names
+    return cast(list[Path], st.session_state[state_key])
+
+
+def _save_uploaded_file(uploaded_file: Any, state_key: str) -> Path:
+    """Persist a single uploaded file and return its temp path."""
+    paths = _save_uploaded_files([uploaded_file], state_key)
+    return paths[0]
+
+
+def _bundle_dataset_id(paths: list[Path]) -> str:
+    """Return a compact display id for a multi-file upload."""
+    return f"{paths[0].name}+{len(paths) - 1}" if len(paths) > 1 else paths[0].name
 
 
 def _render_param_form(algorithm_name: str) -> dict[str, object] | None:
@@ -310,7 +370,12 @@ def _plotly_config() -> dict[str, object]:
     }
 
 
-def _render_single_experiment(upload_ok: bool, input_table: Table | None, data_source: str) -> None:
+def _render_single_experiment(
+    upload_ok: bool,
+    input_table: Table | None,
+    data_source: str,
+    input_bundle: DatasetBundle | None,
+) -> None:
     """Render single algorithm experiment page."""
     if not upload_ok:
         st.info("请先在侧边栏选择或上传数据")
@@ -335,19 +400,36 @@ def _render_single_experiment(upload_ok: bool, input_table: Table | None, data_s
         if st.button("跑实验", type="primary", use_container_width=True):
             with st.spinner("实验运行中..."):
                 try:
-                    result = run_experiment(
-                        dataset_path=data_source,
-                        algorithm_name=selected_algo,
-                        params=params,
-                    )
-                    st.session_state["last_result"] = result
-                    st.success(f"实验完成! run_id={result.run_id}")
+                    if input_bundle is None:
+                        result = run_experiment(
+                            dataset_path=data_source,
+                            algorithm_name=selected_algo,
+                            params=params,
+                        )
+                        st.session_state["last_result"] = result
+                        st.session_state.pop("last_bundle_result", None)
+                        st.success(f"实验完成! run_id={result.run_id}")
+                    else:
+                        bundle_result = run_bundle_experiment(
+                            bundle=input_bundle,
+                            algorithm_name=selected_algo,
+                            params=params,
+                        )
+                        st.session_state["last_bundle_result"] = bundle_result
+                        st.session_state.pop("last_result", None)
+                        st.success(
+                            f"数据集实验完成! bundle_id={bundle_result.bundle_id}, "
+                            f"文件数={len(bundle_result.file_results)}"
+                        )
                 except SchemaValidationError as e:
                     st.error(f"Schema 校验失败：{e}")
 
     with result_col:
         st.subheader("实验结果")
-        if "last_result" in st.session_state:
+        if "last_bundle_result" in st.session_state:
+            bundle_result = cast(BundleRunResult, st.session_state["last_bundle_result"])
+            _render_bundle_result(bundle_result)
+        elif "last_result" in st.session_state:
             result = st.session_state["last_result"]
             st.caption(f"run_id: {result.run_id}")
 
@@ -362,10 +444,66 @@ def _render_single_experiment(upload_ok: bool, input_table: Table | None, data_s
             st.info("运行实验后将在这里展示检测摘要、指标解释和结果曲线。")
 
 
-def _render_batch_experiment(upload_ok: bool, input_table: Table | None, data_source: str) -> None:
+def _render_bundle_result(bundle_result: BundleRunResult) -> None:
+    """Render aggregate and per-file results for a DatasetBundle experiment."""
+    st.caption(f"bundle_id: {bundle_result.bundle_id} · dataset: {bundle_result.dataset_id}")
+
+    st.subheader("数据集汇总")
+    summary_cols = st.columns(4)
+    summary_cols[0].metric("文件数", int(bundle_result.metrics.get("file_count", 0)))
+    summary_cols[1].metric("Mean F1", f"{bundle_result.metrics.get('f1', 0.0):.4f}")
+    summary_cols[2].metric("Mean PA-F1", f"{bundle_result.metrics.get('pa_f1', 0.0):.4f}")
+    summary_cols[3].metric("算法", bundle_result.algorithm_name)
+
+    rows = []
+    for file_result in bundle_result.file_results:
+        metrics = file_result.run_result.metrics
+        rows.append(
+            {
+                "文件": file_result.file_name,
+                "run_id": file_result.run_result.run_id,
+                "F1": round(metrics.get("f1", 0.0), 4),
+                "PA-F1": round(metrics.get("pa_f1", 0.0), 4),
+                "Precision": round(metrics.get("precision", 0.0), 4),
+                "Recall": round(metrics.get("recall", 0.0), 4),
+            }
+        )
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    selected_run_id = st.selectbox(
+        "查看文件结果曲线",
+        options=[file_result.run_result.run_id for file_result in bundle_result.file_results],
+        format_func=lambda run_id: next(
+            file_result.file_name
+            for file_result in bundle_result.file_results
+            if file_result.run_result.run_id == run_id
+        ),
+    )
+    selected_result = next(
+        file_result.run_result
+        for file_result in bundle_result.file_results
+        if file_result.run_result.run_id == selected_run_id
+    )
+    _render_single_result(selected_result.artifacts_path, selected_result.metrics)
+    viz_path = Path(selected_result.artifacts_path) / "viz.html"
+    if viz_path.exists():
+        components.html(viz_path.read_text(), height=720, scrolling=True)
+    else:
+        st.warning("viz.html 未生成")
+
+
+def _render_batch_experiment(
+    upload_ok: bool,
+    input_table: Table | None,
+    data_source: str,
+    input_bundle: DatasetBundle | None,
+) -> None:
     """Render batch experiment page with leaderboard, overlay, heatmap tabs."""
     if not upload_ok:
         st.info("请先在侧边栏选择或上传数据")
+        return
+    if input_bundle is not None:
+        st.info("批量实验暂不支持 DatasetBundle；请切回单文件数据源后运行批量实验。")
         return
 
     st.header("批量实验")
@@ -503,9 +641,15 @@ def _render_history() -> None:
 page = st.sidebar.radio("功能页面", ["单算法实验", "批量实验", "历史记录"])
 
 # ── Shared: data source ─────────────────────────────────────
-upload_ok, input_table, data_source_desc = _get_input_table()
+upload_ok, input_table, data_source_desc, input_bundle = _get_input_table()
 
 if upload_ok and input_table is not None:
+    if input_bundle is not None:
+        st.info(
+            f"已加载 DatasetBundle：{input_bundle.dataset_id}，"
+            f"共 {input_bundle.file_count} 个文件；下方预览首个文件。"
+        )
+
     metric_cols = input_table.schema.columns_of(FieldRole.METRIC)
     if len(metric_cols) > 1:
         st.info(f"检测到 {len(metric_cols)} 个 METRIC 列：{', '.join(metric_cols)}")
@@ -514,8 +658,8 @@ if upload_ok and input_table is not None:
 
 # ── Page routing ────────────────────────────────────────────
 if page == "单算法实验":
-    _render_single_experiment(upload_ok, input_table, data_source_desc)
+    _render_single_experiment(upload_ok, input_table, data_source_desc, input_bundle)
 elif page == "批量实验":
-    _render_batch_experiment(upload_ok, input_table, data_source_desc)
+    _render_batch_experiment(upload_ok, input_table, data_source_desc, input_bundle)
 elif page == "历史记录":
     _render_history()
