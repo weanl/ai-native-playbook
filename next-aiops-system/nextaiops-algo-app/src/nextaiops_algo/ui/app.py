@@ -7,7 +7,6 @@ from typing import Any, cast
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 from nextaiops_algo.algorithms.params import AlgorithmParamSpec, format_experiment_label
 from nextaiops_algo.algorithms.registry import get_algorithm_param_specs, list_algorithms
@@ -180,9 +179,9 @@ def _render_filterable_dataframe(df: pd.DataFrame, key: str) -> None:
         key=f"{key}_columns",
     )
     if selected_columns:
-        st.dataframe(df[selected_columns], use_container_width=True, hide_index=True)
+        st.dataframe(df[selected_columns], width="stretch", hide_index=True)
     else:
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
 
 
 def _render_param_form(algorithm_name: str) -> dict[str, object] | None:
@@ -298,7 +297,7 @@ def _render_data_preview(table: Table) -> None:
         preview_fig = render_data_preview(table, metric_name=selected_metric)
         st.plotly_chart(
             preview_fig,
-            use_container_width=True,
+            width="stretch",
             config=_plotly_config(),
         )
 
@@ -426,7 +425,7 @@ def _render_single_experiment(
         if params is None:
             return
 
-        if st.button("跑实验", type="primary", use_container_width=True):
+        if st.button("跑实验", type="primary", width="stretch"):
             with st.spinner("实验运行中..."):
                 try:
                     if input_bundle is None:
@@ -481,7 +480,7 @@ def _render_single_experiment(
 
             viz_path = Path(result.artifacts_path) / "viz.html"
             if viz_path.exists():
-                components.html(viz_path.read_text(), height=720, scrolling=True)
+                st.iframe(viz_path, width="stretch", height=720)
             else:
                 st.warning("viz.html 未生成")
         else:
@@ -531,7 +530,7 @@ def _render_bundle_result(bundle_result: BundleRunResult) -> None:
     _render_single_result(selected_result.artifacts_path, selected_result.metrics)
     viz_path = Path(selected_result.artifacts_path) / "viz.html"
     if viz_path.exists():
-        components.html(viz_path.read_text(), height=720, scrolling=True)
+        st.iframe(viz_path, width="stretch", height=720)
     else:
         st.warning("viz.html 未生成")
 
@@ -607,14 +606,14 @@ def _render_batch_experiment(
         with tab2:
             if batch_input is not None:
                 fig = render_overlay(batch, batch_input)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             else:
                 st.warning("原始数据不可用，无法渲染时序叠加")
 
         with tab3:
             store = SqliteTrackingStore()
             hm_fig = render_heatmap(batch, store=store)
-            st.plotly_chart(hm_fig, use_container_width=True)
+            st.plotly_chart(hm_fig, width="stretch")
 
     st.subheader("查看历史批量实验")
     store = SqliteTrackingStore()
@@ -642,7 +641,7 @@ def _render_batch_experiment(
 
         with tab3:
             hm_fig = render_heatmap(selected_batch, store=store)
-            st.plotly_chart(hm_fig, use_container_width=True)
+            st.plotly_chart(hm_fig, width="stretch")
     else:
         st.info("暂无历史批量实验记录")
 
@@ -679,7 +678,7 @@ def _render_history() -> None:
         selected_run = next(r for r in runs if r.run_id == selected_run_id)
         viz_path = Path(selected_run.artifacts_path) / "viz.html"
         if viz_path.exists():
-            components.html(viz_path.read_text(), height=600, scrolling=True)
+            st.iframe(viz_path, width="stretch", height=600)
     else:
         st.info("暂无历史实验记录")
 
