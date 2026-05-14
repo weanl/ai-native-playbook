@@ -42,10 +42,14 @@ def _get_input_table() -> tuple[bool, Table | None, str, DatasetBundle | None]:
 
     Returns (upload_ok, table, source_description, optional_bundle).
     """
+    input_disabled = _is_batch_run_in_progress()
     data_source = st.sidebar.selectbox(
         "数据来源",
         ["上传 CSV", "上传 .out", "上传 npy/npz", "上传 zip"] + list_builtin(),
+        disabled=input_disabled,
     )
+    if input_disabled:
+        st.sidebar.caption("批量实验运行中，数据输入已临时锁定。")
 
     if data_source == "上传 CSV":
         uploaded_files = st.file_uploader(
@@ -53,6 +57,7 @@ def _get_input_table() -> tuple[bool, Table | None, str, DatasetBundle | None]:
             type=["csv"],
             accept_multiple_files=True,
             key="csv_upload",
+            disabled=input_disabled,
         )
         if not uploaded_files:
             return False, None, "", None
@@ -73,6 +78,7 @@ def _get_input_table() -> tuple[bool, Table | None, str, DatasetBundle | None]:
             type=["out"],
             accept_multiple_files=True,
             key="out_upload",
+            disabled=input_disabled,
         )
         if not uploaded_files:
             return False, None, "", None
@@ -93,6 +99,7 @@ def _get_input_table() -> tuple[bool, Table | None, str, DatasetBundle | None]:
             type=["npy", "npz"],
             accept_multiple_files=True,
             key="npy_upload",
+            disabled=input_disabled,
         )
         if not uploaded_files:
             return False, None, "", None
@@ -108,7 +115,12 @@ def _get_input_table() -> tuple[bool, Table | None, str, DatasetBundle | None]:
             return False, None, "", None
 
     elif data_source == "上传 zip":
-        uploaded_file = st.file_uploader("上传数据集 zip", type=["zip"], key="zip_upload")
+        uploaded_file = st.file_uploader(
+            "上传数据集 zip",
+            type=["zip"],
+            key="zip_upload",
+            disabled=input_disabled,
+        )
         if uploaded_file is None:
             return False, None, "", None
         zip_path = _save_uploaded_file(cast(Any, uploaded_file), "zip_upload_path")
@@ -166,10 +178,25 @@ def _select_bundle_file(bundle: DatasetBundle, key: str, label: str) -> Table:
         label,
         options=[dataset_file.name for dataset_file in bundle.files],
         key=key,
+        disabled=_is_batch_run_in_progress(),
     )
+    if _is_batch_run_in_progress():
+        st.caption("批量实验运行中，预览文件选择已临时锁定。")
     return next(
         dataset_file.table for dataset_file in bundle.files if dataset_file.name == selected_name
     )
+
+
+def _is_batch_run_in_progress() -> bool:
+    """Return whether a batch experiment is currently running in this session."""
+    return bool(st.session_state.get("batch_run_in_progress", False))
+
+
+def _request_batch_run(payload: dict[str, Any]) -> None:
+    """Mark a batch run request before Streamlit reruns the script."""
+    st.session_state["batch_run_payload"] = payload
+    st.session_state["batch_run_requested"] = True
+    st.session_state["batch_run_in_progress"] = True
 
 
 def _render_filterable_dataframe(df: pd.DataFrame, key: str) -> None:
@@ -569,14 +596,21 @@ def _render_batch_experiment(
         st.info("请先在侧边栏选择或上传数据。已有批量实验结果会继续保留在下方。")
 
     st.subheader("选择算法")
-    select_all = st.checkbox("全选", value=True)
+    batch_controls_disabled = _is_batch_run_in_progress()
+    select_all = st.checkbox("全选", value=True, disabled=batch_controls_disabled)
 
     selected_algos: list[str] = []
     for algo in algo_names:
-        if st.checkbox(algo, value=select_all, key=f"batch_algo_{algo}"):
+        if st.checkbox(
+            algo,
+            value=select_all,
+            key=f"batch_algo_{algo}",
+            disabled=batch_controls_disabled,
+        ):
             selected_algos.append(algo)
 
-    if not selected_algos:
+    pending_batch_request = bool(st.session_state.get("batch_run_requested", False))
+    if not selected_algos and not pending_batch_request:
         st.warning("请至少选择一个算法")
         _render_existing_batch_results(
             render_leaderboard=render_leaderboard,
@@ -615,6 +649,7 @@ def _render_batch_experiment(
         value=default_name,
         help="建议保留时间、数据和算法范围，方便在多次批量实验之间区分。",
         key="batch_experiment_name",
+        disabled=batch_controls_disabled,
     )
     experiment_description = st.text_area(
         "实验描述",
@@ -622,32 +657,56 @@ def _render_batch_experiment(
         height=80,
         help="可记录本次实验目的、数据选择原因或参数假设。",
         key="batch_experiment_description",
+        disabled=batch_controls_disabled,
     )
 
-    run_disabled = not upload_ok
-    if st.button("开始批量实验", type="primary", disabled=run_disabled):
+    request_payload: dict[str, Any] = {
+        "input_table": input_table,
+        "input_bundle": input_bundle,
+        "data_source": data_source,
+        "selected_algos": list(selected_algos),
+        "task_count": task_count if input_bundle is not None else len(selected_algos),
+        "default_name": default_name,
+        "experiment_name": experiment_name.strip() or default_name,
+        "description": experiment_description.strip(),
+    }
+    run_disabled = not upload_ok or _is_batch_run_in_progress()
+    st.button(
+        "开始批量实验",
+        type="primary",
+        disabled=run_disabled,
+        on_click=_request_batch_run,
+        args=(request_payload,),
+    )
+    should_run_batch = bool(st.session_state.pop("batch_run_requested", False))
+    if should_run_batch:
+        payload = cast(dict[str, Any], st.session_state.get("batch_run_payload", {}))
+        run_table_snapshot = cast(Table | None, payload.get("input_table"))
+        run_bundle_snapshot = cast(DatasetBundle | None, payload.get("input_bundle"))
+        run_data_source = str(payload.get("data_source", ""))
+        run_algos = cast(list[str], payload.get("selected_algos", []))
+        run_task_count = int(payload.get("task_count", len(run_algos)))
+        run_experiment_name = str(payload.get("experiment_name", default_name))
+        run_description = str(payload.get("description", ""))
         try:
-            if input_bundle is None:
-                run_table_snapshot = input_table
-                run_data_source = data_source
-                with st.spinner(f"批量运行 {len(selected_algos)} 个算法..."):
+            if run_bundle_snapshot is None:
+                with st.spinner(f"批量运行 {len(run_algos)} 个算法..."):
                     batch = run_batch(
                         dataset=run_data_source,
-                        algorithms=selected_algos,
+                        algorithms=run_algos,
                     )
                     st.session_state["last_batch"] = batch
                     st.session_state["batch_input_table"] = run_table_snapshot
                     st.session_state["last_batch_meta"] = {
-                        "experiment_name": experiment_name.strip() or default_name,
-                        "description": experiment_description.strip(),
+                        "experiment_name": run_experiment_name,
+                        "description": run_description,
                         "data_source": run_data_source,
-                        "algorithm_scope": ", ".join(selected_algos),
+                        "algorithm_scope": ", ".join(run_algos),
                         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     }
                     st.session_state.pop("last_batch_bundle", None)
                     st.success(f"批量实验完成! batch_id={batch.batch_id}, 状态={batch.status.value}")
             else:
-                run_bundle_snapshot = input_bundle
                 progress_bar = st.progress(0.0)
                 progress_text = st.empty()
 
@@ -662,17 +721,17 @@ def _render_batch_experiment(
                         f"正在运行 {index}/{total}：{algorithm_name} × {file_name}"
                     )
 
-                with st.spinner(f"批量运行 {task_count} 个实验单元..."):
+                with st.spinner(f"批量运行 {run_task_count} 个实验单元..."):
                     batch_bundle = run_batch_bundle(
                         bundle=run_bundle_snapshot,
-                        algorithms=selected_algos,
-                        experiment_name=experiment_name.strip() or default_name,
-                        description=experiment_description.strip(),
+                        algorithms=run_algos,
+                        experiment_name=run_experiment_name,
+                        description=run_description,
                         progress_callback=update_batch_bundle_progress,
                     )
                     progress_bar.progress(1.0)
                     progress_text.caption(
-                        f"已完成 {len(batch_bundle.cells)}/{task_count} 个实验单元"
+                        f"已完成 {len(batch_bundle.cells)}/{run_task_count} 个实验单元"
                     )
                     st.session_state["last_batch_bundle"] = batch_bundle
                     st.session_state["batch_input_bundle"] = run_bundle_snapshot
@@ -683,6 +742,9 @@ def _render_batch_experiment(
                     )
         except Exception as e:
             st.error(f"批量实验失败：{e}")
+        finally:
+            st.session_state["batch_run_in_progress"] = False
+            st.session_state.pop("batch_run_payload", None)
 
     _render_existing_batch_results(
         render_leaderboard=render_leaderboard,
