@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NextAIOps 持续学习工作台原型</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --panel-soft: #eef3f8;
+      --text: #172033;
+      --muted: #536176;
+      --border: #d9e1ec;
+      --blue: #2563eb;
+      --green: #16815f;
+      --orange: #b76b00;
+      --red: #c2413d;
+      --violet: #6d5dfc;
+      --gray: #6b7280;
+      --shadow: 0 10px 28px rgba(23, 32, 51, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 224px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      background: #101828;
+      color: #e5edf7;
+      padding: 20px 14px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+
+    .brand {
+      padding: 0 10px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+      margin-bottom: 16px;
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 17px;
+      line-height: 24px;
+    }
+
+    .brand span {
+      display: block;
+      margin-top: 4px;
+      color: #a9b8cf;
+      font-size: 12px;
+    }
+
+    .nav {
+      display: grid;
+      gap: 6px;
+    }
+
+    .nav button {
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 11px;
+      text-align: left;
+      color: #cbd6e6;
+      background: transparent;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .nav button:hover,
+    .nav button.active {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .main {
+      min-width: 0;
+      padding: 22px 28px 36px;
+    }
+
+    .topbar {
+      display: flex;
+      gap: 16px;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 32px;
+    }
+
+    .subtitle {
+      margin-top: 6px;
+      color: var(--muted);
+      max-width: 920px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn.primary {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: white;
+    }
+
+    .btn:disabled {
+      cursor: not-allowed;
+      color: #94a3b8;
+      background: #edf2f7;
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 14px;
+    }
+
+    .two {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+      gap: 14px;
+    }
+
+    .three {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(220px, 1fr));
+      gap: 14px;
+    }
+
+    .card,
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .card {
+      padding: 15px;
+      min-height: 118px;
+    }
+
+    .section {
+      padding: 16px;
+    }
+
+    .kicker {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 7px;
+    }
+
+    .metric {
+      font-size: 25px;
+      line-height: 34px;
+      font-weight: 750;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      line-height: 26px;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      line-height: 22px;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+
+    .s-green { color: var(--green); background: #e8f6f1; border-color: #b9e5d4; }
+    .s-blue { color: var(--blue); background: #e8efff; border-color: #c7d7ff; }
+    .s-violet { color: var(--violet); background: #efedff; border-color: #d8d2ff; }
+    .s-orange { color: var(--orange); background: #fff4df; border-color: #ffd99b; }
+    .s-red { color: var(--red); background: #fdecec; border-color: #f5baba; }
+    .s-gray { color: var(--gray); background: #f1f3f6; border-color: #d7dce3; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--border);
+      padding: 10px 8px;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      background: #f8fafc;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: grid;
+      gap: 14px;
+    }
+
+    .journey {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      gap: 10px;
+    }
+
+    .journey div {
+      background: var(--panel-soft);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .event {
+      border-left: 4px solid var(--blue);
+      background: #f8fbff;
+      padding: 10px 12px;
+      border-radius: 6px;
+    }
+
+    .event.warn {
+      border-left-color: var(--orange);
+    }
+
+    .event.fail {
+      border-left-color: var(--red);
+    }
+
+    .bars {
+      display: grid;
+      gap: 9px;
+    }
+
+    .bar {
+      display: grid;
+      grid-template-columns: 138px 1fr 62px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .track {
+      height: 9px;
+      border-radius: 999px;
+      background: #e7edf5;
+      overflow: hidden;
+    }
+
+    .fill {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--blue);
+    }
+
+    .fill.good {
+      background: var(--green);
+    }
+
+    .fill.warn {
+      background: var(--orange);
+    }
+
+    .evidence {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(220px, 1fr));
+      gap: 10px;
+    }
+
+    .evidence-item {
+      border: 1px solid var(--border);
+      background: #fbfdff;
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .callout {
+      border: 1px solid #ffd99b;
+      background: #fff8ea;
+      border-radius: 8px;
+      padding: 12px;
+      color: #694000;
+    }
+
+    .matrix {
+      display: grid;
+      grid-template-columns: 120px repeat(4, minmax(90px, 1fr));
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .cell {
+      padding: 10px;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      min-height: 44px;
+      background: #ffffff;
+    }
+
+    .cell.head {
+      background: #f8fafc;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .cell.hot {
+      background: #e8f6f1;
+      color: var(--green);
+      font-weight: 750;
+    }
+
+    .cell.warm {
+      background: #fff4df;
+      color: var(--orange);
+      font-weight: 750;
+    }
+
+    .cell.bad {
+      background: #fdecec;
+      color: var(--red);
+      font-weight: 750;
+    }
+
+    .footer-note {
+      color: var(--muted);
+      font-size: 12px;
+      padding: 8px 0 0;
+    }
+
+    @media (max-width: 1180px) {
+      .cards,
+      .journey {
+        grid-template-columns: repeat(2, minmax(180px, 1fr));
+      }
+
+      .two {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 860px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: relative;
+        height: auto;
+      }
+
+      .nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .main {
+        padding: 18px;
+      }
+
+      .cards,
+      .three,
+      .journey,
+      .evidence {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <strong>NextAIOps</strong>
+        <span>持续学习工作台原型</span>
+      </div>
+      <nav class="nav" id="nav"></nav>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h1 id="page-title">Overview</h1>
+          <div class="subtitle" id="page-subtitle"></div>
+        </div>
+        <div class="toolbar">
+          <button class="btn" type="button" onclick="showPage('History')">查看历史</button>
+          <button class="btn primary" type="button" onclick="showPage('Models')">复核候选模型</button>
+        </div>
+      </div>
+
+      <section class="page active" data-page="Overview">
+        <div class="journey">
+          <div><strong>页面目标</strong><br>快速理解当前 active model、最近训练和待处理风险。</div>
+          <div><strong>用户动作</strong><br>进入候选模型复核、失败任务、数据质量详情。</div>
+          <div><strong>核心信息</strong><br>active model、candidate、train jobs、system status。</div>
+          <div><strong>下一步动作</strong><br>从异常摘要进入 Models、Data 或 History。</div>
+        </div>
+
+        <div class="cards">
+          <div class="card">
+            <div class="kicker">Active Model</div>
+            <div class="metric">model-2026.05.18</div>
+            <span class="status s-green">active</span>
+            <p class="small">IQR detector · PA-F1 0.82 · 上线 18 小时</p>
+          </div>
+          <div class="card">
+            <div class="kicker">Candidate Review</div>
+            <div class="metric">1 个待复核</div>
+            <span class="status s-orange">needs_review</span>
+            <p class="small">召回提升，但误报率轻微退化。</p>
+          </div>
+          <div class="card">
+            <div class="kicker">Latest Train Job</div>
+            <div class="metric">78%</div>
+            <span class="status s-violet">evaluating</span>
+            <p class="small">rolling window: 2026-05-01 ~ 2026-05-18</p>
+          </div>
+          <div class="card">
+            <div class="kicker">Data Quality</div>
+            <div class="metric">96/100</div>
+            <span class="status s-green">validated</span>
+            <p class="small">无 schema 阻断，缺失率 0.3%。</p>
+          </div>
+        </div>
+
+        <div class="two">
+          <div class="section">
+            <h2>最近事件</h2>
+            <div class="timeline">
+              <div class="event"><strong>candidate model 生成</strong><br><span class="small">model-2026.05.19-c1 · evidence needs_review</span></div>
+              <div class="event warn"><strong>batch run 部分失败</strong><br><span class="small">3/24 组合失败，成功结果可继续比较。</span></div>
+              <div class="event"><strong>dataset v2026.05.18 验证通过</strong><br><span class="small">fingerprint 已生成，可用于训练和评估。</span></div>
+            </div>
+          </div>
+          <div class="section">
+            <h2>演示主线</h2>
+            <div class="bars">
+              <div class="bar"><span>数据来源</span><div class="track"><div class="fill good" style="width: 96%"></div></div><strong>完整</strong></div>
+              <div class="bar"><span>候选比较</span><div class="track"><div class="fill good" style="width: 84%"></div></div><strong>良好</strong></div>
+              <div class="bar"><span>晋级证据</span><div class="track"><div class="fill warn" style="width: 68%"></div></div><strong>复核</strong></div>
+              <div class="bar"><span>审计链路</span><div class="track"><div class="fill good" style="width: 91%"></div></div><strong>可追溯</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>关键状态样例</h2>
+          <table>
+            <thead><tr><th>状态</th><th>层次</th><th>页面含义</th><th>用户提示</th></tr></thead>
+            <tbody>
+              <tr><td><span class="status s-gray">empty</span></td><td>UI 通用状态</td><td>暂无候选模型或筛选无结果</td><td>提示下一步创建、导入或清除筛选</td></tr>
+              <tr><td><span class="status s-blue">loading</span></td><td>UI 通用状态</td><td>组件加载中</td><td>展示骨架屏，关键动作暂不可用</td></tr>
+              <tr><td><span class="status s-violet">running</span></td><td>任务状态</td><td>实验或训练正在执行</td><td>允许查看详情，禁止晋级动作</td></tr>
+              <tr><td><span class="status s-red">failed</span></td><td>任务状态</td><td>任务失败</td><td>展示 run id、job id、错误摘要和追溯入口</td></tr>
+              <tr><td><span class="status s-orange">partial_failed</span></td><td>批量状态</td><td>部分组合失败</td><td>保留成功结果，同时展示失败组合</td></tr>
+              <tr><td><span class="status s-blue">candidate</span></td><td>模型生命周期</td><td>候选模型等待证据评审</td><td>展示 evidence panel</td></tr>
+              <tr><td><span class="status s-green">active</span></td><td>模型生命周期</td><td>当前生效模型</td><td>允许对比和回滚调查</td></tr>
+              <tr><td><span class="status s-gray">archived</span></td><td>生命周期状态</td><td>历史对象仅用于审计</td><td>只读展示，不参与新训练</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="page" data-page="Data">
+        <div class="journey">
+          <div><strong>页面目标</strong><br>解释模型从哪些数据学习。</div>
+          <div><strong>用户动作</strong><br>查看数据版本、schema、fingerprint、质量摘要。</div>
+          <div><strong>核心信息</strong><br>dataset version、状态、时间范围、质量分。</div>
+          <div><strong>下一步动作</strong><br>选择 validated 数据进入实验或训练。</div>
+        </div>
+        <div class="section">
+          <h2>数据版本</h2>
+          <table>
+            <thead><tr><th>版本</th><th>状态</th><th>时间范围</th><th>Schema</th><th>质量摘要</th><th>使用情况</th></tr></thead>
+            <tbody>
+              <tr><td>ds-2026.05.18</td><td><span class="status s-green">validated</span></td><td>05-01 ~ 05-18</td><td>timestamp + 3 metrics + label</td><td>缺失 0.3%，异常 4.2%</td><td>2 train jobs, 8 runs</td></tr>
+              <tr><td>ds-2026.05.11</td><td><span class="status s-gray">archived</span></td><td>04-24 ~ 05-11</td><td>timestamp + 2 metrics + label</td><td>历史基线</td><td>active model 来源</td></tr>
+              <tr><td>ds-2026.05.19-draft</td><td><span class="status s-orange">draft</span></td><td>05-19</td><td>等待验证</td><td>fingerprint pending</td><td>不可作为 evidence</td></tr>
+              <tr><td>ds-2026.05.03-bad</td><td><span class="status s-red">invalid</span></td><td>05-03</td><td>缺 label</td><td>schema 阻断</td><td>实验 disabled</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="three">
+          <div class="section"><h2>Schema</h2><p>timestamp: `timestamp`<br>metric: `cpu_usage`, `mem_usage`, `latency`<br>label: `is_anomaly`</p></div>
+          <div class="section"><h2>Fingerprint</h2><p>hash: fp_8a31c2<br>rows: 12,960<br>metrics: 3<br>label coverage: 100%</p></div>
+          <div class="section"><h2>不可用原因示例</h2><p><span class="status s-red">invalid</span> 缺少 label 或无 metric 列时，训练和晋级证据动作必须 disabled。</p></div>
+        </div>
+      </section>
+
+      <section class="page" data-page="Experiments">
+        <div class="journey">
+          <div><strong>页面目标</strong><br>解释单个算法在单个数据版本上的行为。</div>
+          <div><strong>用户动作</strong><br>选择数据、算法与参数，查看结果诊断。</div>
+          <div><strong>核心信息</strong><br>输入摘要、参数、指标、异常图、artifact。</div>
+          <div><strong>下一步动作</strong><br>加入批量比较或打开 run history。</div>
+        </div>
+        <div class="two">
+          <div class="section">
+            <h2>单算法实验结果</h2>
+            <table>
+              <thead><tr><th>Run</th><th>算法</th><th>数据版本</th><th>状态</th><th>F1</th><th>Artifact</th></tr></thead>
+              <tbody>
+                <tr><td>run-1042</td><td>IQR</td><td>ds-2026.05.18</td><td><span class="status s-green">completed</span></td><td>0.81</td><td>viz.html</td></tr>
+                <tr><td>run-1041</td><td>Three Sigma</td><td>ds-2026.05.18</td><td><span class="status s-green">completed</span></td><td>0.73</td><td>viz.html</td></tr>
+                <tr><td>run-1040</td><td>TSB Adapter</td><td>ds-2026.05.03-bad</td><td><span class="status s-red">failed</span></td><td>-</td><td>schema error</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="section">
+            <h2>结果诊断</h2>
+            <div class="bars">
+              <div class="bar"><span>Precision</span><div class="track"><div class="fill good" style="width: 79%"></div></div><strong>0.79</strong></div>
+              <div class="bar"><span>Recall</span><div class="track"><div class="fill good" style="width: 84%"></div></div><strong>0.84</strong></div>
+              <div class="bar"><span>PA-F1</span><div class="track"><div class="fill good" style="width: 86%"></div></div><strong>0.86</strong></div>
+            </div>
+            <p class="footer-note">图表区域在正式 UI 中承载 Plotly；本静态原型用指标条表达。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" data-page="Batch Compare">
+        <div class="journey">
+          <div><strong>页面目标</strong><br>比较算法、参数和数据版本组合。</div>
+          <div><strong>用户动作</strong><br>查看排行榜、矩阵、失败组合。</div>
+          <div><strong>核心信息</strong><br>leaderboard、heatmap、partial_failed。</div>
+          <div><strong>下一步动作</strong><br>选择稳定候选进入持续学习。</div>
+        </div>
+        <div class="section">
+          <h2>Leaderboard</h2>
+          <table>
+            <thead><tr><th>Rank</th><th>配置</th><th>数据版本</th><th>状态</th><th>F1</th><th>PA-F1</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>IQR / window=96</td><td>ds-2026.05.18</td><td><span class="status s-green">completed</span></td><td>0.81</td><td>0.86</td><td>稳定提升</td></tr>
+              <tr><td>2</td><td>Three Sigma</td><td>ds-2026.05.18</td><td><span class="status s-green">completed</span></td><td>0.73</td><td>0.79</td><td>误报较低</td></tr>
+              <tr><td>3</td><td>TSB Adapter set</td><td>mixed</td><td><span class="status s-orange">partial_failed</span></td><td>0.76</td><td>0.80</td><td>3 个组合失败</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="section">
+          <h2>指标矩阵</h2>
+          <div class="matrix">
+            <div class="cell head">算法 / 数据</div><div class="cell head">05.18</div><div class="cell head">05.11</div><div class="cell head">05.03</div><div class="cell head">05.01</div>
+            <div class="cell head">IQR</div><div class="cell hot">0.86</div><div class="cell hot">0.82</div><div class="cell warm">0.71</div><div class="cell hot">0.80</div>
+            <div class="cell head">Three Sigma</div><div class="cell warm">0.79</div><div class="cell warm">0.74</div><div class="cell warm">0.70</div><div class="cell warm">0.72</div>
+            <div class="cell head">TSB Bridge</div><div class="cell hot">0.80</div><div class="cell bad">failed</div><div class="cell warm">0.73</div><div class="cell bad">failed</div>
+          </div>
+          <p class="footer-note">partial_failed 单元格必须可见，不能被空白吞掉。</p>
+        </div>
+      </section>
+
+      <section class="page" data-page="Continuous Learning">
+        <div class="journey">
+          <div><strong>页面目标</strong><br>说明平台如何从滚动窗口产生候选模型。</div>
+          <div><strong>用户动作</strong><br>查看训练窗口、任务队列、输出 candidate。</div>
+          <div><strong>核心信息</strong><br>rolling window、train job、artifact、candidate output。</div>
+          <div><strong>下一步动作</strong><br>完成任务后进入 Models 复核证据。</div>
+        </div>
+        <div class="section">
+          <h2>Train Jobs</h2>
+          <table>
+            <thead><tr><th>Job</th><th>状态</th><th>训练数据</th><th>评估数据</th><th>输出</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>job-20260519-02</td><td><span class="status s-violet">evaluating</span></td><td>ds-2026.05.18</td><td>holdout-05.18</td><td>pending</td><td>评估中，尚不可晋级</td></tr>
+              <tr><td>job-20260519-01</td><td><span class="status s-green">completed</span></td><td>ds-2026.05.18</td><td>holdout-05.18</td><td>model-2026.05.19-c1</td><td>产生 candidate</td></tr>
+              <tr><td>job-20260518-03</td><td><span class="status s-red">failed</span></td><td>ds-2026.05.03-bad</td><td>-</td><td>-</td><td>schema invalid</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="three">
+          <div class="section"><h2>训练窗口</h2><p>2026-05-01 00:00 到 2026-05-18 23:59<br><span class="status s-green">validated</span></p></div>
+          <div class="section"><h2>评估窗口</h2><p>2026-05-19 00:00 到 2026-05-19 12:00<br><span class="status s-blue">evaluating</span></p></div>
+          <div class="section"><h2>回测窗口</h2><p>最近 7 天滚动回测<br><span class="status s-orange">needs_review</span></p></div>
+        </div>
+      </section>
+
+      <section class="page" data-page="Models">
+        <div class="journey">
+          <div><strong>页面目标</strong><br>回答“为什么这个模型可以上线”。</div>
+          <div><strong>用户动作</strong><br>比较 candidate 与 active，查看 evidence。</div>
+          <div><strong>核心信息</strong><br>指标差异、退化项、数据质量、artifact、审计。</div>
+          <div><strong>下一步动作</strong><br>promote、request review 或回到缺失证据来源。</div>
+        </div>
+        <div class="two">
+          <div class="section">
+            <h2>模型版本</h2>
+            <table>
+              <thead><tr><th>版本</th><th>状态</th><th>算法</th><th>训练数据</th><th>PA-F1</th><th>动作</th></tr></thead>
+              <tbody>
+                <tr><td>model-2026.05.19-c1</td><td><span class="status s-blue">candidate</span></td><td>IQR</td><td>ds-2026.05.18</td><td>0.86</td><td>需复核</td></tr>
+                <tr><td>model-2026.05.18</td><td><span class="status s-green">active</span></td><td>IQR</td><td>ds-2026.05.11</td><td>0.82</td><td>当前生效</td></tr>
+                <tr><td>model-2026.05.11</td><td><span class="status s-gray">superseded</span></td><td>Three Sigma</td><td>ds-2026.05.01</td><td>0.76</td><td>可回滚目标</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="section">
+            <h2>Candidate vs Active</h2>
+            <div class="bars">
+              <div class="bar"><span>PA-F1</span><div class="track"><div class="fill good" style="width: 86%"></div></div><strong>+0.04</strong></div>
+              <div class="bar"><span>Recall</span><div class="track"><div class="fill good" style="width: 88%"></div></div><strong>+0.06</strong></div>
+              <div class="bar"><span>False Positive</span><div class="track"><div class="fill warn" style="width: 58%"></div></div><strong>+0.02</strong></div>
+            </div>
+            <div class="callout">证据状态：召回提升，但误报轻微退化，需要人工复核后才能晋级。</div>
+          </div>
+        </div>
+        <div class="section">
+          <h2>Evidence Panel</h2>
+          <div class="evidence">
+            <div class="evidence-item"><h3>训练数据版本</h3><p>ds-2026.05.18 <span class="status s-green">validated</span></p></div>
+            <div class="evidence-item"><h3>评估数据版本</h3><p>holdout-05.18 <span class="status s-green">validated</span></p></div>
+            <div class="evidence-item"><h3>回测窗口</h3><p>最近 7 天滚动回测 <span class="status s-orange">needs_review</span></p></div>
+            <div class="evidence-item"><h3>指标差异</h3><p>PA-F1 +0.04，Recall +0.06，False Positive +0.02。</p></div>
+            <div class="evidence-item"><h3>退化项</h3><p><span class="status s-orange">warning</span> 误报率轻微上升，需要业务确认。</p></div>
+            <div class="evidence-item"><h3>数据质量</h3><p>质量分 96/100，缺失率 0.3%，schema 完整。</p></div>
+            <div class="evidence-item"><h3>漂移提示</h3><p>latency 分布右移 3.1%，未触发阻断。</p></div>
+            <div class="evidence-item"><h3>Artifact 与审计</h3><p>metrics.json · viz.html · promotion pending_review。</p></div>
+          </div>
+          <p class="footer-note">Promote 入口必须贴近 evidence completeness；证据不足时不可直接晋级。</p>
+          <button class="btn" type="button" disabled>Promote disabled: needs manual review</button>
+        </div>
+      </section>
+
+      <section class="page" data-page="History">
+        <div class="journey">
+          <div><strong>页面目标</strong><br>统一追溯 run、batch、train job、promotion event。</div>
+          <div><strong>用户动作</strong><br>过滤事件，打开证据链。</div>
+          <div><strong>核心信息</strong><br>事件类型、状态、关联对象、审计原因。</div>
+          <div><strong>下一步动作</strong><br>回到 Models、Data 或 Continuous Learning。</div>
+        </div>
+        <div class="section">
+          <h2>事件时间线</h2>
+          <div class="timeline">
+            <div class="event warn"><strong>promotion pending_review</strong><br><span class="small">model-2026.05.19-c1 · 误报退化需人工确认 · linked evidence panel</span></div>
+            <div class="event"><strong>train job completed</strong><br><span class="small">job-20260519-01 · output model-2026.05.19-c1</span></div>
+            <div class="event fail"><strong>batch partial_failed</strong><br><span class="small">batch-883 · TSB Bridge 3 个组合失败</span></div>
+            <div class="event"><strong>rollback audit</strong><br><span class="small">model-2026.05.11 -> model-2026.05.18 · 上一次演示回滚记录</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" data-page="Settings">
+        <div class="journey">
+          <div><strong>页面目标</strong><br>展示只读演示配置和治理入口。</div>
+          <div><strong>用户动作</strong><br>查看环境、保留策略、未来权限入口。</div>
+          <div><strong>核心信息</strong><br>demo mode、artifact retention、audit placeholder。</div>
+          <div><strong>下一步动作</strong><br>M2 不保存配置，仅作为未来入口。</div>
+        </div>
+        <div class="section">
+          <h2>只读配置</h2>
+          <table>
+            <thead><tr><th>配置</th><th>值</th><th>状态</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>Environment</td><td>local demo</td><td><span class="status s-gray">readonly</span></td><td>静态原型不保存配置</td></tr>
+              <tr><td>Artifact retention</td><td>30 days</td><td><span class="status s-gray">placeholder</span></td><td>M2-029 可展示真实配置</td></tr>
+              <tr><td>Governance</td><td>audit first</td><td><span class="status s-orange">future</span></td><td>权限与审批流进入 M2+ / M3</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const pages = [
+      {
+        name: "Overview",
+        subtitle: "展示当前 active model、最近训练、最近实验与系统状态，是客户演示的入口。"
+      },
+      {
+        name: "Data",
+        subtitle: "解释模型从哪些数据学习，展示 dataset version、schema、fingerprint 与数据质量。"
+      },
+      {
+        name: "Experiments",
+        subtitle: "承载单算法实验能力，帮助用户理解一次算法运行的输入、参数、结果和诊断。"
+      },
+      {
+        name: "Batch Compare",
+        subtitle: "比较多算法、多参数或多数据版本组合，识别稳定候选方向。"
+      },
+      {
+        name: "Continuous Learning",
+        subtitle: "展示 rolling window、train job、评估阶段和 candidate model 产出。"
+      },
+      {
+        name: "Models",
+        subtitle: "用 candidate vs active 对比和 evidence panel 回答为什么可以上线。"
+      },
+      {
+        name: "History",
+        subtitle: "统一追溯 run、batch、train job、promotion event 与 rollback 审计。"
+      },
+      {
+        name: "Settings",
+        subtitle: "展示演示配置和未来治理入口；本原型为只读。"
+      }
+    ];
+
+    const nav = document.getElementById("nav");
+
+    pages.forEach((page) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = page.name;
+      button.dataset.target = page.name;
+      button.addEventListener("click", () => showPage(page.name));
+      nav.appendChild(button);
+    });
+
+    function showPage(name) {
+      const pageMeta = pages.find((page) => page.name === name) || pages[0];
+      document.getElementById("page-title").textContent = pageMeta.name;
+      document.getElementById("page-subtitle").textContent = pageMeta.subtitle;
+
+      document.querySelectorAll(".page").forEach((section) => {
+        section.classList.toggle("active", section.dataset.page === pageMeta.name);
+      });
+
+      document.querySelectorAll(".nav button").forEach((button) => {
+        button.classList.toggle("active", button.dataset.target === pageMeta.name);
+      });
+    }
+
+    showPage("Overview");
+  </script>
+</body>
+</html>
