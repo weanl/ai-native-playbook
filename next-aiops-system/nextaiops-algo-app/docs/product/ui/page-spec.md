@@ -45,6 +45,14 @@ HTML 原型演示样例：
 Overview -> Data -> Experiments -> Batch Compare -> Continuous Learning -> Models -> History
 ```
 
+原型还应提供一张模型生成流程图，用同一示例展示：
+
+```text
+dataset version -> experiment run -> batch candidate -> train job -> candidate model -> evidence review -> active model / history audit
+```
+
+流程图中的节点应可点击，并与旅程步骤联动，帮助 reviewer 从“模型如何生成”反查每个对象的证据来源。
+
 ## Overview
 
 页面目标：

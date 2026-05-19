@@ -203,6 +203,52 @@
       margin-top: 12px;
     }
 
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(118px, 1fr));
+      gap: 10px;
+      align-items: stretch;
+      margin-top: 12px;
+    }
+
+    .flow-node {
+      position: relative;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 11px;
+      text-align: left;
+      cursor: pointer;
+      min-height: 112px;
+      box-shadow: 0 4px 16px rgba(23, 32, 51, 0.05);
+      font: inherit;
+    }
+
+    .flow-node::after {
+      content: "->";
+      position: absolute;
+      right: -16px;
+      top: 44px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .flow-node:last-child::after {
+      content: "";
+    }
+
+    .flow-node strong {
+      display: block;
+      margin: 6px 0 4px;
+      font-size: 13px;
+    }
+
+    .flow-node.active {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.14);
+    }
+
     .btn {
       border: 1px solid var(--border);
       background: var(--panel);
@@ -497,6 +543,14 @@
         grid-template-columns: repeat(3, minmax(120px, 1fr));
       }
 
+      .flow {
+        grid-template-columns: repeat(2, minmax(180px, 1fr));
+      }
+
+      .flow-node::after {
+        display: none;
+      }
+
       .two {
         grid-template-columns: 1fr;
       }
@@ -524,6 +578,7 @@
       .three,
       .journey,
       .evidence,
+      .flow,
       .demo-steps {
         grid-template-columns: 1fr;
       }
@@ -633,6 +688,55 @@
               <div class="bar"><span>晋级证据</span><div class="track"><div class="fill warn" style="width: 68%"></div></div><strong>复核</strong></div>
               <div class="bar"><span>审计链路</span><div class="track"><div class="fill good" style="width: 91%"></div></div><strong>可追溯</strong></div>
             </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>模型生成流程图</h2>
+          <p class="small">点击任一节点可跳到对应页面与高亮对象。该图只表达 M2 模型生命周期，不代表在线推理发布链路。</p>
+          <div class="flow" id="model-flow">
+            <button class="flow-node" type="button" data-step="1">
+              <span class="status s-green">validated</span>
+              <strong>Dataset Version</strong>
+              <span>ds-2026.05.18</span><br>
+              <span class="small">Checkout API latency</span>
+            </button>
+            <button class="flow-node" type="button" data-step="2">
+              <span class="status s-green">completed</span>
+              <strong>Experiment Run</strong>
+              <span>run-1042</span><br>
+              <span class="small">IQR baseline</span>
+            </button>
+            <button class="flow-node" type="button" data-step="3">
+              <span class="status s-orange">partial_failed</span>
+              <strong>Batch Candidate</strong>
+              <span>IQR / window=96</span><br>
+              <span class="small">best stable config</span>
+            </button>
+            <button class="flow-node" type="button" data-step="4">
+              <span class="status s-green">completed</span>
+              <strong>Train Job</strong>
+              <span>job-20260519-01</span><br>
+              <span class="small">artifact generated</span>
+            </button>
+            <button class="flow-node" type="button" data-step="5">
+              <span class="status s-blue">candidate</span>
+              <strong>Model Version</strong>
+              <span>model-2026.05.19-c1</span><br>
+              <span class="small">needs review</span>
+            </button>
+            <button class="flow-node" type="button" data-step="5">
+              <span class="status s-orange">needs_review</span>
+              <strong>Evidence Review</strong>
+              <span>PA-F1 +0.04</span><br>
+              <span class="small">false positive +0.02</span>
+            </button>
+            <button class="flow-node" type="button" data-step="6">
+              <span class="status s-orange">pending_review</span>
+              <strong>History Audit</strong>
+              <span>evt-901</span><br>
+              <span class="small">promotion pending</span>
+            </button>
           </div>
         </div>
 
@@ -1006,6 +1110,10 @@
       stepsContainer.appendChild(button);
     });
 
+    document.querySelectorAll(".flow-node").forEach((node) => {
+      node.addEventListener("click", () => setJourneyStep(Number(node.dataset.step)));
+    });
+
     document.getElementById("prev-step").addEventListener("click", () => {
       setJourneyStep(Math.max(0, currentStep - 1));
     });
@@ -1055,6 +1163,10 @@
         node.classList.remove("highlight");
       });
 
+      document.querySelectorAll(".flow-node").forEach((node) => {
+        node.classList.remove("active");
+      });
+
       document.getElementById("prev-step").disabled = true;
       document.getElementById("next-step").textContent = "回到旅程";
     }
@@ -1074,6 +1186,10 @@
 
       document.querySelectorAll("[data-focus]").forEach((node) => {
         node.classList.toggle("highlight", node.dataset.focus === step.focus);
+      });
+
+      document.querySelectorAll(".flow-node").forEach((node) => {
+        node.classList.toggle("active", Number(node.dataset.step) === currentStep);
       });
 
       if (shouldScroll) {
