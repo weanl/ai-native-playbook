@@ -172,6 +172,9 @@ M2-024 文档中如出现“上线 / 生效”，只表示模型版本在模型�
 - 退化项。
 - 数据质量摘要。
 - 漂移或分布变化提示。
+- 模型 artifact ID / path / checksum / version。
+- 算法名称、参数、seed。
+- train job ID 与 experiment run ID。
 - 关键 artifact 链接。
 - promote / rollback 审计记录。
 

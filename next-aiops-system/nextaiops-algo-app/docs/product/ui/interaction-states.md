@@ -109,6 +109,9 @@ Evidence panel 必须至少展示：
 - 退化项。
 - 数据质量摘要。
 - 漂移或分布变化提示。
+- 模型 artifact ID / path / checksum / version。
+- 算法名称、参数、seed。
+- train job ID 与 experiment run ID。
 - artifact 链接。
 - promote / rollback 审计记录。
 

@@ -825,7 +825,9 @@
             <div class="evidence-item"><h3>退化项</h3><p><span class="status s-orange">warning</span> 误报率轻微上升，需要业务确认。</p></div>
             <div class="evidence-item"><h3>数据质量</h3><p>质量分 96/100，缺失率 0.3%，schema 完整。</p></div>
             <div class="evidence-item"><h3>漂移提示</h3><p>latency 分布右移 3.1%，未触发阻断。</p></div>
-            <div class="evidence-item"><h3>Artifact 与审计</h3><p>metrics.json · viz.html · promotion pending_review。</p></div>
+            <div class="evidence-item"><h3>模型 Artifact</h3><p>artifact_id: artifact-model-c1<br>path: runs/job-20260519-01/model.pkl<br>checksum: sha256:9f31...c2a<br>version: 2026.05.19-c1</p></div>
+            <div class="evidence-item"><h3>复现配置</h3><p>algorithm: IQR<br>params: window=96, contamination=0.04<br>seed: 42<br>train_job_id: job-20260519-01<br>run_id: run-1042</p></div>
+            <div class="evidence-item"><h3>Artifact 与审计</h3><p>metrics.json · viz.html · model.pkl · promotion pending_review。</p></div>
           </div>
           <p class="footer-note">Promote 入口必须贴近 evidence completeness；无标签或 proxy 模式下不得把 F1 / PA-F1 作为直接晋级证据。</p>
           <button class="btn" type="button" disabled>Promote disabled: needs manual review</button>
@@ -843,12 +845,12 @@
         <div class="section" data-focus="history">
           <h2>事件时间线</h2>
           <table>
-            <thead><tr><th>event_id</th><th>event_type</th><th>source_version</th><th>target_version</th><th>actor</th><th>reason</th><th>created_at</th><th>related_artifacts</th></tr></thead>
+            <thead><tr><th>event_id</th><th>event_type</th><th>subject_type</th><th>subject_id</th><th>source_model</th><th>target_model</th><th>actor</th><th>reason</th><th>created_at</th><th>related_refs</th></tr></thead>
             <tbody>
-              <tr><td>evt-901</td><td><span class="status s-orange">pending_review</span></td><td>model-2026.05.18</td><td>model-2026.05.19-c1</td><td>operator.demo</td><td>误报退化需确认</td><td>2026-05-19 13:30</td><td>metrics.json, viz.html</td></tr>
-              <tr><td>evt-900</td><td><span class="status s-green">train_completed</span></td><td>ds-2026.05.18</td><td>model-2026.05.19-c1</td><td>system</td><td>rolling window completed</td><td>2026-05-19 13:05</td><td>train.log</td></tr>
-              <tr><td>evt-899</td><td><span class="status s-orange">partial_failed</span></td><td>batch-883</td><td>-</td><td>system</td><td>TSB Bridge 3 个组合失败</td><td>2026-05-19 12:40</td><td>errors.json</td></tr>
-              <tr><td>evt-880</td><td><span class="status s-gray">rolled_back</span></td><td>model-2026.05.11</td><td>model-2026.05.18</td><td>operator.demo</td><td>演示回滚记录</td><td>2026-05-18 16:20</td><td>audit.md</td></tr>
+              <tr><td>evt-901</td><td><span class="status s-orange">pending_review</span></td><td>promotion_event</td><td>model-2026.05.19-c1</td><td>model-2026.05.18</td><td>model-2026.05.19-c1</td><td>operator.demo</td><td>误报退化需确认</td><td>2026-05-19 13:30</td><td>job-20260519-01, run-1042, artifact-model-c1</td></tr>
+              <tr><td>evt-900</td><td><span class="status s-green">train_completed</span></td><td>train_job</td><td>job-20260519-01</td><td>-</td><td>model-2026.05.19-c1</td><td>system</td><td>rolling window completed</td><td>2026-05-19 13:05</td><td>ds-2026.05.18, run-1042, model.pkl</td></tr>
+              <tr><td>evt-899</td><td><span class="status s-orange">partial_failed</span></td><td>batch_run</td><td>batch-883</td><td>-</td><td>-</td><td>system</td><td>TSB Bridge 3 个组合失败</td><td>2026-05-19 12:40</td><td>errors.json, leaderboard.html</td></tr>
+              <tr><td>evt-880</td><td><span class="status s-gray">rolled_back</span></td><td>promotion_event</td><td>rollback-20260518</td><td>model-2026.05.11</td><td>model-2026.05.18</td><td>operator.demo</td><td>演示回滚记录</td><td>2026-05-18 16:20</td><td>audit.md, previous-model.pkl</td></tr>
             </tbody>
           </table>
           <div class="action-row">
@@ -969,7 +971,7 @@
         page: "History",
         label: "审计追溯",
         title: "追溯 promotion 与 rollback",
-        detail: "History 用 event_id、source_version、target_version、actor、reason 与 artifacts 串起完整证据链。",
+        detail: "History 用 event_id、subject、source/target model、actor、reason 与 refs 串起完整证据链。",
         focus: "history",
         object: "evt-901 / pending_review"
       }
@@ -984,7 +986,14 @@
       button.type = "button";
       button.textContent = page.name;
       button.dataset.target = page.name;
-      button.addEventListener("click", () => showPage(page.name));
+      button.addEventListener("click", () => {
+        const stepIndex = journeySteps.findIndex((step) => step.page === page.name);
+        if (stepIndex >= 0) {
+          setJourneyStep(stepIndex);
+          return;
+        }
+        showFreeBrowse(page.name);
+      });
       nav.appendChild(button);
     });
 
@@ -1002,6 +1011,10 @@
     });
 
     document.getElementById("next-step").addEventListener("click", () => {
+      if (currentStep < 0) {
+        setJourneyStep(0);
+        return;
+      }
       if (currentStep === journeySteps.length - 1) {
         setJourneyStep(0);
         return;
@@ -1027,7 +1040,26 @@
       });
     }
 
-    function setJourneyStep(index) {
+    function showFreeBrowse(name) {
+      currentStep = -1;
+      showPage(name);
+      document.getElementById("demo-title").textContent = `自由浏览：${name}`;
+      document.getElementById("demo-detail").textContent = "左侧导航已切换到自由浏览模式；点击旅程步骤或“下一步”可回到演示链路。";
+      document.getElementById("demo-object").textContent = "未选择旅程对象";
+
+      document.querySelectorAll(".step-button").forEach((button) => {
+        button.classList.remove("active", "done");
+      });
+
+      document.querySelectorAll("[data-focus]").forEach((node) => {
+        node.classList.remove("highlight");
+      });
+
+      document.getElementById("prev-step").disabled = true;
+      document.getElementById("next-step").textContent = "回到旅程";
+    }
+
+    function setJourneyStep(index, shouldScroll = true) {
       currentStep = Math.max(0, Math.min(journeySteps.length - 1, index));
       const step = journeySteps[currentStep];
       showPage(step.page);
@@ -1044,6 +1076,15 @@
         node.classList.toggle("highlight", node.dataset.focus === step.focus);
       });
 
+      if (shouldScroll) {
+        const target = document.querySelector(`[data-focus="${step.focus}"]`);
+        if (target) {
+          window.setTimeout(() => {
+            target.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 40);
+        }
+      }
+
       document.getElementById("prev-step").disabled = currentStep === 0;
       document.getElementById("next-step").textContent = currentStep === journeySteps.length - 1 ? "完成演示" : "下一步";
     }
@@ -1054,7 +1095,7 @@
       note.classList.add("status", "s-green");
     }
 
-    setJourneyStep(0);
+    setJourneyStep(0, false);
   </script>
 </body>
 </html>

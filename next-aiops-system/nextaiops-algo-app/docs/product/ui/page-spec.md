@@ -242,6 +242,9 @@ Overview -> Data -> Experiments -> Batch Compare -> Continuous Learning -> Model
   - 退化项。
   - 数据质量摘要。
   - 漂移或分布变化提示。
+  - 模型 artifact ID / path / checksum / version。
+  - 算法名称、参数、seed。
+  - train job ID 与 experiment run ID。
   - artifact 链接。
   - promote / rollback 审计记录。
 - Action panel：promote、request review、rollback。
@@ -271,6 +274,8 @@ Overview -> Data -> Experiments -> Batch Compare -> Continuous Learning -> Model
 - 指标存在关键退化但无说明。
 - 数据质量 invalid。
 - 关键 artifact 缺失。
+- 模型 artifact 缺少 ID、路径、checksum 或版本。
+- 缺少 algorithm / params / seed / train_job_id / run_id 等复现字段。
 
 ## History
 
@@ -295,11 +300,14 @@ History event 最低字段：
 
 - `event_id`
 - `event_type`
-- `source_version`
-- `target_version`
+- `subject_type`
+- `subject_id`
+- `source_model_version`（promotion / rollback 事件适用）
+- `target_model_version`（promotion / rollback 事件适用）
 - `actor`
 - `reason`
 - `created_at`
+- `related_refs`
 - `related_artifacts`
 
 下一步动作：

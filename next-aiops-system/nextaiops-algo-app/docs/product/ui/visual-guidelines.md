@@ -173,6 +173,9 @@ Evidence panel 是 Models 页的核心设计，不是普通详情卡。
 - 退化项。
 - 数据质量摘要。
 - 漂移提示。
+- 模型 artifact ID / path / checksum / version。
+- 算法名称、参数、seed。
+- train job ID 与 experiment run ID。
 - artifact 链接。
 - 晋级 / 回滚审计记录。
 
