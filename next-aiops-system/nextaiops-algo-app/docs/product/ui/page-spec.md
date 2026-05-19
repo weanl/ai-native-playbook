@@ -25,6 +25,11 @@ Settings
 - `promotion event`：晋级或回滚审计事件。
 - `artifact`：图表、评估结果、训练输出等可追溯产物。
 
+术语边界：
+
+- `active model` 表示模型注册表中的当前生效版本，不表示在线推理服务或生产流量切换。
+- `promote` 表示候选模型通过证据评审并触发生命周期事件，不表示 M2 实现发布系统。
+
 ## Overview
 
 页面目标：
@@ -41,7 +46,7 @@ Settings
 
 核心信息：
 
-- Active model card：版本、算法、上线时间、最近指标。
+- Active model card：版本、算法、生效时间、最近指标。
 - Candidate review card：候选模型数量、证据完整度、是否可晋级。
 - Recent train jobs：状态、输入数据版本、输出模型版本。
 - System status：数据质量、最近失败、artifact 状态。
@@ -109,7 +114,7 @@ Settings
 - Input summary：数据版本、时间范围、metric 列、label 可用性。
 - Algorithm panel：算法、参数、随机种子、输入角色要求。
 - Result chart：时间序列、异常点、阈值线。
-- Metrics panel：Precision、Recall、F1、PA-F1 等已支持指标。
+- Metrics panel：Precision、Recall、F1、PA-F1 等已支持指标，并说明 `evaluation mode`、`label coverage` 与指标可信度。
 - Diagnostics panel：失败原因、退化提示、artifact 链接。
 
 下一步动作：
@@ -215,6 +220,9 @@ Settings
   - 训练数据版本。
   - 评估数据版本。
   - 回测窗口。
+  - 标签覆盖率。
+  - 评估模式：`labeled` / `unlabeled` / `proxy`。
+  - 指标可信度。
   - candidate vs active 指标差异。
   - 退化项。
   - 数据质量摘要。
@@ -243,6 +251,8 @@ Settings
 
 - 缺少训练数据版本。
 - 缺少评估数据版本或回测窗口。
+- 缺少标签覆盖率或评估模式说明。
+- `unlabeled` 或 `proxy` 模式下将 F1 / PA-F1 直接作为晋级证据。
 - 指标存在关键退化但无说明。
 - 数据质量 invalid。
 - 关键 artifact 缺失。
@@ -265,6 +275,17 @@ Settings
 - Timeline：事件类型、状态、关联对象、操作者、时间。
 - Audit detail：动作、原因、前后版本、证据摘要。
 - Trace links：dataset、run、batch、job、model、artifact。
+
+History event 最低字段：
+
+- `event_id`
+- `event_type`
+- `source_version`
+- `target_version`
+- `actor`
+- `reason`
+- `created_at`
+- `related_artifacts`
 
 下一步动作：
 

@@ -51,7 +51,7 @@ UI 通用状态：页面或组件当前如何呈现
 
 展示要求：
 
-- `training` 和 `evaluating` 是任务阶段，不能直接表示模型可上线。
+- `training` 和 `evaluating` 是任务阶段，不能直接表示模型可晋级或生效。
 - `completed` 只代表 train job 完成，不代表 candidate model 可晋级。
 - `failed` 必须保留输入数据版本、算法配置和错误摘要。
 
@@ -62,7 +62,7 @@ UI 通用状态：页面或组件当前如何呈现
 | `candidate` | 候选模型，等待证据评审 | 候选标签 + evidence panel | 查看证据、请求晋级 |
 | `rejected` | 候选模型被拒绝 | 拒绝原因 + 关联证据 | 复盘 |
 | `promoted` | 已通过晋级动作 | 晋级事件链接 | 查看审计 |
-| `active` | 当前线上或演示主模型 | active 标签 + 当前指标 | 监控、对比、回滚 |
+| `active` | 当前生效或演示主模型 | active 标签 + 当前指标 | 监控、对比、回滚 |
 | `superseded` | 曾经 active，已被新模型替代 | 历史标签 | 回滚候选 |
 | `archived` | 保留用于审计，不再参与操作 | 只读标签 | 查看历史 |
 | `rolled_back` | 因回滚事件被撤下或作为回滚来源 | 回滚事件链接 | 复盘 |
@@ -102,12 +102,22 @@ Evidence panel 必须至少展示：
 - 训练数据版本。
 - 评估数据版本。
 - 回测窗口。
+- 标签覆盖率。
+- 评估模式：`labeled` / `unlabeled` / `proxy`。
+- 指标可信度。
 - candidate vs active 指标差异。
 - 退化项。
 - 数据质量摘要。
 - 漂移或分布变化提示。
 - artifact 链接。
 - promote / rollback 审计记录。
+
+评估指标规则：
+
+- `labeled` 模式可将 F1 / PA-F1 作为晋级证据，但必须展示 label coverage。
+- `unlabeled` 模式不得把 F1 / PA-F1 作为晋级证据，只能展示无标签诊断、漂移提示或人工复核入口。
+- `proxy` 模式必须说明 proxy 来源和可信度，默认进入 `needs_review`。
+- 指标可信度不足时，Promote 表现不得是直接可晋级。
 
 ## 交互规则
 

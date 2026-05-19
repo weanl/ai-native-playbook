@@ -5,10 +5,16 @@
 本设计面向 M2 持续学习与模型生命周期管理工作台，目标是让客户能沿着一条清晰主线理解平台：
 
 ```text
-模型从哪些数据学习 -> 学到了什么 -> 为什么候选模型可以上线 -> 上线后如何追溯与回滚
+模型从哪些数据学习 -> 学到了什么 -> 为什么候选模型可以晋级为 active -> 生效后如何追溯与回滚
 ```
 
 本文只定义产品旅程与演示叙事，不定义后端 schema，不实现业务逻辑。
+
+## 术语边界
+
+M2-024 文档中如出现“上线 / 生效”，只表示模型版本在模型注册与生命周期管理中被标记为 `active` 或完成 `promoted` 事件。
+
+这不代表 M2 要实现在线推理服务、生产流量切换、多租户权限或发布系统。相关能力仍属于 M2 范围外或后续 proposal。
 
 ## 用户角色
 
@@ -18,13 +24,13 @@
 
 - 平台是否能解释持续学习闭环，而不是只展示一次性实验结果。
 - 数据、实验、训练、模型版本、晋级事件之间是否可追溯。
-- 候选模型上线前是否有足够证据支撑。
+- 候选模型晋级为 `active` 前是否有足够证据支撑。
 
 典型问题：
 
 - 这个模型用的是哪一版数据？
-- 新模型相比当前线上模型提升在哪里，退化在哪里？
-- 如果上线后效果不好，能不能定位原因并回滚？
+- 新模型相比当前 active model 提升在哪里，退化在哪里？
+- 如果生效后效果不好，能不能定位原因并回滚？
 
 ### AIOps 运维人员
 
@@ -65,7 +71,7 @@
 
 关键叙事：
 
-- 当前线上使用的是哪个模型版本。
+- 当前生效的是哪个模型版本。
 - 最近一次训练是否完成，是否产生 candidate model。
 - 是否存在需要处理的失败、部分失败或待复核事件。
 
@@ -134,20 +140,20 @@
 演示目标：
 
 - 展示 rolling window、训练数据集版本、train job、评估任务和候选模型产出。
-- 解释持续学习不是自动上线，而是先产生可评审 candidate。
+- 解释持续学习不是自动变更 active model，而是先产生可评审 candidate。
 
 关键叙事：
 
 - 训练任务有明确输入、状态、参数和输出 artifact。
 - queued、training、evaluating、completed、failed、cancelled 是任务状态，不等同于模型生命周期状态。
-- completed train job 可能产生 candidate model，但 candidate 是否上线需要证据评审。
+- completed train job 可能产生 candidate model，但 candidate 是否晋级需要证据评审。
 
 下一步动作：
 
 - completed job 进入 `Models` 查看候选模型证据。
 - failed job 进入 `History` 查看失败上下文。
 
-### 6. Models：回答“为什么这个模型可以上线”
+### 6. Models：回答“为什么这个模型可以晋级”
 
 演示目标：
 
@@ -159,12 +165,21 @@
 - 训练数据版本。
 - 评估数据版本。
 - 回测窗口。
+- 标签覆盖率。
+- 评估模式：`labeled` / `unlabeled` / `proxy`。
+- 指标可信度。
 - candidate vs active 指标差异。
 - 退化项。
 - 数据质量摘要。
 - 漂移或分布变化提示。
 - 关键 artifact 链接。
 - promote / rollback 审计记录。
+
+评估证据约束：
+
+- `labeled` 模式且 label coverage 足够时，F1 / PA-F1 可作为晋级证据。
+- `unlabeled` 模式下，F1 / PA-F1 不应作为晋级证据；页面只展示无标签诊断、漂移提示或人工复核入口。
+- `proxy` 模式必须说明 proxy 来源和指标可信度，默认需要人工复核。
 
 关键叙事：
 
@@ -176,9 +191,9 @@
 
 - evidence 充分：进入晋级确认。
 - evidence 不足：进入相关数据、实验或训练任务详情。
-- 已上线后：进入 `History` 查看审计记录。
+- 已生效后：进入 `History` 查看审计记录。
 
-### 7. History：回答“上线后如何追溯与回滚”
+### 7. History：回答“生效后如何追溯与回滚”
 
 演示目标：
 
@@ -214,7 +229,7 @@ Data
 - `Batch Compare` 形成候选方向。
 - `Continuous Learning` 将候选方向转化为训练任务与候选模型。
 - `Models` 用 evidence 决定是否晋级。
-- `History` 负责上线后的追溯与回滚。
+- `History` 负责生效后的追溯与回滚。
 
 ## 异常旅程
 
@@ -242,7 +257,7 @@ Models candidate -> evidence incomplete -> promote disabled -> 指向缺失证�
 
 缺失项可能来自数据质量、评估窗口不足、指标退化或 artifact 缺失。
 
-### 上线后回滚
+### 生效后回滚
 
 ```text
 Active model abnormal -> History promotion event -> Models previous version -> rollback audit
