@@ -30,6 +30,21 @@ Settings
 - `active model` 表示模型注册表中的当前生效版本，不表示在线推理服务或生产流量切换。
 - `promote` 表示候选模型通过证据评审并触发生命周期事件，不表示 M2 实现发布系统。
 
+HTML 原型演示样例：
+
+- 示例对象：`Checkout API latency`。
+- 示例数据版本：`ds-2026.05.18`。
+- 示例算法配置：`IQR / window=96`。
+- 示例训练任务：`job-20260519-01`。
+- 示例候选模型：`model-2026.05.19-c1`。
+- 示例审计事件：`evt-901`。
+
+原型应支持用户通过“下一步 / 上一步 / 直接点击步骤”完成：
+
+```text
+Overview -> Data -> Experiments -> Batch Compare -> Continuous Learning -> Models -> History
+```
+
 ## Overview
 
 页面目标：

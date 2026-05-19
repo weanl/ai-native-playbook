@@ -129,6 +129,80 @@
       justify-content: flex-end;
     }
 
+    .demo-panel {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .demo-head {
+      display: flex;
+      gap: 14px;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .demo-head h2 {
+      margin-bottom: 4px;
+    }
+
+    .scenario {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      background: var(--panel-soft);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+
+    .demo-steps {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(110px, 1fr));
+      gap: 8px;
+    }
+
+    .step-button {
+      border: 1px solid var(--border);
+      background: #ffffff;
+      border-radius: 8px;
+      padding: 9px 8px;
+      color: var(--muted);
+      cursor: pointer;
+      text-align: left;
+      min-height: 58px;
+    }
+
+    .step-button strong {
+      display: block;
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    .step-button.active {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.14);
+    }
+
+    .step-button.done {
+      background: #f0faf6;
+      border-color: #b9e5d4;
+    }
+
+    .action-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 12px;
+    }
+
     .btn {
       border: 1px solid var(--border);
       background: var(--panel);
@@ -361,6 +435,12 @@
       color: #694000;
     }
 
+    .highlight {
+      outline: 3px solid rgba(37, 99, 235, 0.28);
+      outline-offset: 3px;
+      background-image: linear-gradient(0deg, rgba(37, 99, 235, 0.04), rgba(37, 99, 235, 0.04));
+    }
+
     .matrix {
       display: grid;
       grid-template-columns: 120px repeat(4, minmax(90px, 1fr));
@@ -413,6 +493,10 @@
         grid-template-columns: repeat(2, minmax(180px, 1fr));
       }
 
+      .demo-steps {
+        grid-template-columns: repeat(3, minmax(120px, 1fr));
+      }
+
       .two {
         grid-template-columns: 1fr;
       }
@@ -439,8 +523,13 @@
       .cards,
       .three,
       .journey,
-      .evidence {
+      .evidence,
+      .demo-steps {
         grid-template-columns: 1fr;
+      }
+
+      .demo-head {
+        display: grid;
       }
     }
   </style>
@@ -462,9 +551,30 @@
           <div class="subtitle" id="page-subtitle"></div>
         </div>
         <div class="toolbar">
-          <button class="btn" type="button" onclick="showPage('History')">查看历史</button>
-          <button class="btn primary" type="button" onclick="showPage('Models')">复核候选模型</button>
+          <button class="btn" type="button" onclick="setJourneyStep(6)">查看审计链路</button>
+          <button class="btn primary" type="button" onclick="setJourneyStep(5)">复核候选模型</button>
         </div>
+      </div>
+
+      <div class="demo-panel">
+        <div class="demo-head">
+          <div>
+            <div class="kicker">可交互演示场景</div>
+            <h2 id="demo-title">识别待复核候选</h2>
+            <div class="small" id="demo-detail"></div>
+          </div>
+          <div class="toolbar">
+            <button class="btn" type="button" id="prev-step">上一步</button>
+            <button class="btn primary" type="button" id="next-step">下一步</button>
+            <button class="btn" type="button" id="reset-step">重置旅程</button>
+          </div>
+        </div>
+        <div class="scenario">
+          <span class="status s-blue">示例 KPI</span>
+          <strong id="demo-object">Checkout API latency</strong>
+          <span class="small">同一条数据与候选模型贯穿 Data -> Experiments -> Batch Compare -> Continuous Learning -> Models -> History。</span>
+        </div>
+        <div class="demo-steps" id="demo-steps"></div>
       </div>
 
       <section class="page active" data-page="Overview">
@@ -506,9 +616,13 @@
           <div class="section">
             <h2>最近事件</h2>
             <div class="timeline">
-              <div class="event"><strong>candidate model 生成</strong><br><span class="small">model-2026.05.19-c1 · evidence needs_review</span></div>
+              <div class="event" data-focus="overview-risk"><strong>candidate model 生成</strong><br><span class="small">model-2026.05.19-c1 · evidence needs_review</span></div>
               <div class="event warn"><strong>batch run 部分失败</strong><br><span class="small">3/24 组合失败，成功结果可继续比较。</span></div>
               <div class="event"><strong>dataset v2026.05.18 验证通过</strong><br><span class="small">fingerprint 已生成，可用于训练和评估。</span></div>
+            </div>
+            <div class="action-row">
+              <button class="btn primary" type="button" onclick="setJourneyStep(1)">开始查看数据来源</button>
+              <span class="small">从候选模型反查它学过的数据。</span>
             </div>
           </div>
           <div class="section">
@@ -552,12 +666,16 @@
           <table>
             <thead><tr><th>版本</th><th>状态</th><th>时间范围</th><th>Schema</th><th>质量摘要</th><th>使用情况</th></tr></thead>
             <tbody>
-              <tr><td>ds-2026.05.18</td><td><span class="status s-green">validated</span></td><td>05-01 ~ 05-18</td><td>timestamp + 3 metrics + label</td><td>缺失 0.3%，异常 4.2%</td><td>2 train jobs, 8 runs</td></tr>
+              <tr data-focus="dataset"><td>ds-2026.05.18</td><td><span class="status s-green">validated</span></td><td>05-01 ~ 05-18</td><td>timestamp + 3 metrics + label</td><td>缺失 0.3%，异常 4.2%</td><td>2 train jobs, 8 runs</td></tr>
               <tr><td>ds-2026.05.11</td><td><span class="status s-gray">archived</span></td><td>04-24 ~ 05-11</td><td>timestamp + 2 metrics + label</td><td>历史基线</td><td>active model 来源</td></tr>
               <tr><td>ds-2026.05.19-draft</td><td><span class="status s-orange">draft</span></td><td>05-19</td><td>等待验证</td><td>fingerprint pending</td><td>不可作为 evidence</td></tr>
               <tr><td>ds-2026.05.03-bad</td><td><span class="status s-red">invalid</span></td><td>05-03</td><td>缺 label</td><td>schema 阻断</td><td>实验 disabled</td></tr>
             </tbody>
           </table>
+          <div class="action-row">
+            <button class="btn primary" type="button" onclick="setJourneyStep(2)">使用 ds-2026.05.18 运行 IQR 实验</button>
+            <span class="small">label coverage 100%，可产生 F1 / PA-F1 评估证据。</span>
+          </div>
         </div>
         <div class="three">
           <div class="section"><h2>Schema</h2><p>timestamp: `timestamp`<br>metric: `cpu_usage`, `mem_usage`, `latency`<br>label: `is_anomaly`</p></div>
@@ -579,11 +697,16 @@
             <table>
               <thead><tr><th>Run</th><th>算法</th><th>数据版本</th><th>状态</th><th>F1</th><th>Artifact</th></tr></thead>
               <tbody>
-                <tr><td>run-1042</td><td>IQR</td><td>ds-2026.05.18</td><td><span class="status s-green">completed</span></td><td>0.81</td><td>viz.html</td></tr>
+                <tr data-focus="experiment"><td>run-1042</td><td>IQR</td><td>ds-2026.05.18</td><td><span class="status s-green">completed</span></td><td>0.81</td><td>viz.html</td></tr>
                 <tr><td>run-1041</td><td>Three Sigma</td><td>ds-2026.05.18</td><td><span class="status s-green">completed</span></td><td>0.73</td><td>viz.html</td></tr>
                 <tr><td>run-1040</td><td>TSB Adapter</td><td>ds-2026.05.03-bad</td><td><span class="status s-red">failed</span></td><td>-</td><td>schema error</td></tr>
               </tbody>
             </table>
+            <div class="action-row">
+              <button class="btn primary" type="button" onclick="setJourneyStep(3)">把 IQR 结果加入批量比较</button>
+              <button class="btn" type="button" onclick="markExperimentReviewed()">标记实验已复核</button>
+              <span class="small" id="experiment-note">等待用户复核 run-1042。</span>
+            </div>
           </div>
           <div class="section">
             <h2>结果诊断</h2>
@@ -609,11 +732,15 @@
           <table>
             <thead><tr><th>Rank</th><th>配置</th><th>数据版本</th><th>状态</th><th>F1</th><th>PA-F1</th><th>说明</th></tr></thead>
             <tbody>
-              <tr><td>1</td><td>IQR / window=96</td><td>ds-2026.05.18</td><td><span class="status s-green">completed</span></td><td>0.81</td><td>0.86</td><td>稳定提升</td></tr>
+              <tr data-focus="batch"><td>1</td><td>IQR / window=96</td><td>ds-2026.05.18</td><td><span class="status s-green">completed</span></td><td>0.81</td><td>0.86</td><td>稳定提升</td></tr>
               <tr><td>2</td><td>Three Sigma</td><td>ds-2026.05.18</td><td><span class="status s-green">completed</span></td><td>0.73</td><td>0.79</td><td>误报较低</td></tr>
               <tr><td>3</td><td>TSB Adapter set</td><td>mixed</td><td><span class="status s-orange">partial_failed</span></td><td>0.76</td><td>0.80</td><td>3 个组合失败</td></tr>
             </tbody>
           </table>
+          <div class="action-row">
+            <button class="btn primary" type="button" onclick="setJourneyStep(4)">用排名第一配置启动持续学习训练</button>
+            <button class="btn" type="button" onclick="setJourneyStep(6)">查看失败组合审计</button>
+          </div>
           </div>
           <div class="callout">partial_failed 详情：TSB Bridge 在 ds-2026.05.11 与 ds-2026.05.01 上失败；成功组合仍可比较，但失败组合必须进入 History 追溯。</div>
         <div class="section">
@@ -641,10 +768,14 @@
             <thead><tr><th>Job</th><th>状态</th><th>训练数据</th><th>评估数据</th><th>输出</th><th>说明</th></tr></thead>
             <tbody>
               <tr><td>job-20260519-02</td><td><span class="status s-violet">evaluating</span></td><td>ds-2026.05.18</td><td>holdout-05.18</td><td>pending</td><td>评估中，尚不可晋级</td></tr>
-              <tr><td>job-20260519-01</td><td><span class="status s-green">completed</span></td><td>ds-2026.05.18</td><td>holdout-05.18</td><td>model-2026.05.19-c1</td><td>产生 candidate</td></tr>
+              <tr data-focus="train"><td>job-20260519-01</td><td><span class="status s-green">completed</span></td><td>ds-2026.05.18</td><td>holdout-05.18</td><td>model-2026.05.19-c1</td><td>产生 candidate</td></tr>
               <tr><td>job-20260518-03</td><td><span class="status s-red">failed</span></td><td>ds-2026.05.03-bad</td><td>-</td><td>-</td><td>schema invalid</td></tr>
             </tbody>
           </table>
+          <div class="action-row">
+            <button class="btn primary" type="button" onclick="setJourneyStep(5)">打开 candidate model evidence</button>
+            <span class="small">completed train job 只代表产生候选，不代表可直接晋级。</span>
+          </div>
         </div>
         <div class="three">
           <div class="section"><h2>训练窗口</h2><p>2026-05-01 00:00 到 2026-05-18 23:59<br><span class="status s-green">validated</span></p></div>
@@ -682,7 +813,7 @@
             <div class="callout">证据状态：召回提升，但误报轻微退化，需要人工复核后才能晋级。</div>
           </div>
         </div>
-        <div class="section">
+        <div class="section" data-focus="evidence">
           <h2>Evidence Panel</h2>
           <div class="evidence">
             <div class="evidence-item"><h3>训练数据版本</h3><p>ds-2026.05.18 <span class="status s-green">validated</span></p></div>
@@ -698,6 +829,7 @@
           </div>
           <p class="footer-note">Promote 入口必须贴近 evidence completeness；无标签或 proxy 模式下不得把 F1 / PA-F1 作为直接晋级证据。</p>
           <button class="btn" type="button" disabled>Promote disabled: needs manual review</button>
+          <button class="btn primary" type="button" onclick="setJourneyStep(6)">查看 promotion 审计记录</button>
         </div>
       </section>
 
@@ -708,7 +840,7 @@
           <div><strong>核心信息</strong><br>事件类型、状态、关联对象、审计原因。</div>
           <div><strong>下一步动作</strong><br>回到 Models、Data 或 Continuous Learning。</div>
         </div>
-        <div class="section">
+        <div class="section" data-focus="history">
           <h2>事件时间线</h2>
           <table>
             <thead><tr><th>event_id</th><th>event_type</th><th>source_version</th><th>target_version</th><th>actor</th><th>reason</th><th>created_at</th><th>related_artifacts</th></tr></thead>
@@ -719,6 +851,10 @@
               <tr><td>evt-880</td><td><span class="status s-gray">rolled_back</span></td><td>model-2026.05.11</td><td>model-2026.05.18</td><td>operator.demo</td><td>演示回滚记录</td><td>2026-05-18 16:20</td><td>audit.md</td></tr>
             </tbody>
           </table>
+          <div class="action-row">
+            <button class="btn" type="button" onclick="setJourneyStep(5)">回到模型证据</button>
+            <button class="btn primary" type="button" onclick="setJourneyStep(0)">完成演示并回到 Overview</button>
+          </div>
         </div>
       </section>
 
@@ -780,7 +916,68 @@
       }
     ];
 
+    const journeySteps = [
+      {
+        page: "Overview",
+        label: "概览",
+        title: "识别待复核候选",
+        detail: "客户先看到 active model 与一个待复核 candidate，演示从这里进入证据链。",
+        focus: "overview-risk",
+        object: "model-2026.05.19-c1 / Checkout API latency"
+      },
+      {
+        page: "Data",
+        label: "数据",
+        title: "确认模型学习来源",
+        detail: "选择 ds-2026.05.18：schema 完整、label coverage 100%，可作为训练与评估证据。",
+        focus: "dataset",
+        object: "ds-2026.05.18"
+      },
+      {
+        page: "Experiments",
+        label: "单实验",
+        title: "运行 IQR 并解释结果",
+        detail: "run-1042 使用 IQR 在同一数据版本上完成，PA-F1 0.86，指标来自 labeled 数据。",
+        focus: "experiment",
+        object: "run-1042 / IQR"
+      },
+      {
+        page: "Batch Compare",
+        label: "批量比较",
+        title: "选择稳定候选方向",
+        detail: "Leaderboard 显示 IQR/window=96 最稳定，同时保留 partial_failed 组合供追溯。",
+        focus: "batch",
+        object: "IQR / window=96"
+      },
+      {
+        page: "Continuous Learning",
+        label: "持续学习",
+        title: "从训练任务产生 candidate",
+        detail: "job-20260519-01 已完成并输出 model-2026.05.19-c1；任务完成不等于自动晋级。",
+        focus: "train",
+        object: "job-20260519-01"
+      },
+      {
+        page: "Models",
+        label: "模型证据",
+        title: "复核 candidate vs active evidence",
+        detail: "Evidence panel 展示数据版本、评估模式、指标差异、退化项和审计状态；因误报退化仍需人工复核。",
+        focus: "evidence",
+        object: "model-2026.05.19-c1"
+      },
+      {
+        page: "History",
+        label: "审计追溯",
+        title: "追溯 promotion 与 rollback",
+        detail: "History 用 event_id、source_version、target_version、actor、reason 与 artifacts 串起完整证据链。",
+        focus: "history",
+        object: "evt-901 / pending_review"
+      }
+    ];
+
     const nav = document.getElementById("nav");
+    const stepsContainer = document.getElementById("demo-steps");
+    let currentStep = 0;
 
     pages.forEach((page) => {
       const button = document.createElement("button");
@@ -789,6 +986,31 @@
       button.dataset.target = page.name;
       button.addEventListener("click", () => showPage(page.name));
       nav.appendChild(button);
+    });
+
+    journeySteps.forEach((step, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "step-button";
+      button.innerHTML = `<strong>${index + 1}. ${step.label}</strong><span>${step.page}</span>`;
+      button.addEventListener("click", () => setJourneyStep(index));
+      stepsContainer.appendChild(button);
+    });
+
+    document.getElementById("prev-step").addEventListener("click", () => {
+      setJourneyStep(Math.max(0, currentStep - 1));
+    });
+
+    document.getElementById("next-step").addEventListener("click", () => {
+      if (currentStep === journeySteps.length - 1) {
+        setJourneyStep(0);
+        return;
+      }
+      setJourneyStep(currentStep + 1);
+    });
+
+    document.getElementById("reset-step").addEventListener("click", () => {
+      setJourneyStep(0);
     });
 
     function showPage(name) {
@@ -805,7 +1027,34 @@
       });
     }
 
-    showPage("Overview");
+    function setJourneyStep(index) {
+      currentStep = Math.max(0, Math.min(journeySteps.length - 1, index));
+      const step = journeySteps[currentStep];
+      showPage(step.page);
+      document.getElementById("demo-title").textContent = step.title;
+      document.getElementById("demo-detail").textContent = step.detail;
+      document.getElementById("demo-object").textContent = step.object;
+
+      document.querySelectorAll(".step-button").forEach((button, stepIndex) => {
+        button.classList.toggle("active", stepIndex === currentStep);
+        button.classList.toggle("done", stepIndex < currentStep);
+      });
+
+      document.querySelectorAll("[data-focus]").forEach((node) => {
+        node.classList.toggle("highlight", node.dataset.focus === step.focus);
+      });
+
+      document.getElementById("prev-step").disabled = currentStep === 0;
+      document.getElementById("next-step").textContent = currentStep === journeySteps.length - 1 ? "完成演示" : "下一步";
+    }
+
+    function markExperimentReviewed() {
+      const note = document.getElementById("experiment-note");
+      note.textContent = "run-1042 已复核：可进入批量比较。";
+      note.classList.add("status", "s-green");
+    }
+
+    setJourneyStep(0);
   </script>
 </body>
 </html>
