@@ -9,6 +9,7 @@ Overview
 Data
 Experiments
 Batch Compare
+Strategy Simulation
 Continuous Learning
 Models
 History
@@ -20,6 +21,7 @@ Settings
 - `dataset version`：数据版本，承载 schema、fingerprint、质量摘要。
 - `experiment run`：单算法实验运行。
 - `batch run`：批量实验运行。
+- `strategy simulation run / report`：离线策略模拟运行与报告，承载每日新增数据后的 dry-run / backtest / recommendation 结果。
 - `train job`：持续学习训练任务。
 - `model version`：模型版本，包含 candidate、active、superseded 等状态。
 - `promotion event`：晋级或回滚审计事件。
@@ -42,7 +44,7 @@ HTML 原型演示样例：
 原型应支持用户通过“下一步 / 上一步 / 直接点击步骤”完成：
 
 ```text
-Overview -> Data -> Experiments -> Batch Compare -> Continuous Learning -> Models -> History
+Overview -> Data -> Experiments -> Batch Compare -> Strategy Simulation -> Continuous Learning -> Models -> History
 ```
 
 当前阶段的流程重心应先放在实验与策略模拟，而不是急于落地主流程。推荐先以 drawio 作为流程 source of truth，再回填 HTML 原型。
@@ -51,8 +53,8 @@ Overview -> Data -> Experiments -> Batch Compare -> Continuous Learning -> Model
 
 ```text
 Daily Data Partition -> Dataset Selection -> Experiment Run
--> Batch Compare -> Training Config -> Strategy Simulation
--> Candidate Direction
+-> Batch Compare -> Candidate Direction -> Strategy Simulation
+-> Winning Config
 ```
 
 该闭环用于充分比较不同数据集、算法、参数和自动 active 策略，挑选更可靠的候选方向。
@@ -74,7 +76,7 @@ Daily Data Partition -> Training Dataset Version -> Train Job -> Model Artifact
 
 `experiment run` 与 `batch run` 是当前阶段的优先工作对象：它们负责探索不同数据集上的算法表现、形成训练配置和策略证据；它们不应被表达为 model artifact 的直接生产步骤。
 
-每日新增数据后的自动训练、评估与 `auto-active` 策略可以在流程图中作为 M2+ / 演示策略模拟支线表达，但不得混同为 M2-028 当前实现范围。M2-028 的主线仍是 manual promotion。
+每日新增数据后的自动训练、评估与 `auto-active` 策略应作为 M2 离线策略模拟表达，形态是 dry-run / backtest / recommendation。它可以输出 `would_promote` 和推荐结论，但不得自动修改真实 active pointer。M2-028 的主线仍是 manual promotion。
 
 流程图文件：`docs/product/ui/offline-model-lifecycle.drawio`。
 
@@ -200,7 +202,7 @@ Daily Data Partition -> Training Dataset Version -> Train Job -> Model Artifact
 
 下一步动作：
 
-- `Use as candidate direction` -> `Continuous Learning`
+- `Use as candidate direction` -> `Strategy Simulation`
 - `Inspect failed run` -> `History`
 
 代表性状态：
@@ -210,11 +212,50 @@ Daily Data Partition -> Training Dataset Version -> Train Job -> Model Artifact
 - failed：全部失败或配置不可用。
 - completed：结果完整。
 
+## Strategy Simulation
+
+页面目标：
+
+- 在不修改真实 active pointer 的前提下，模拟每日新增数据后的训练、评估与 auto-active 策略。
+- 量化候选方向在不同 dataset version / rolling window 下是否足够稳健。
+- 输出 `would_promote` / `needs_review` / `blocked` 推荐结论和可解释指标。
+
+用户动作：
+
+- 选择 candidate direction、rolling window 和策略阈值。
+- 查看每日 dry-run / backtest 结果。
+- 对比模拟 active timeline 与当前 active baseline。
+- 将通过策略模拟的 winning config 承接到持续学习主流程。
+
+核心信息：
+
+- Policy setup：策略阈值、最小 label coverage、退化容忍度、数据质量门槛。
+- Daily simulation table：dataset version、训练窗口、评估窗口、决策、阻断原因。
+- Effect metrics：Precision、Recall、F1、PA-F1、误报数、漏报数、candidate vs active delta。
+- Stability summary：跨 dataset version / rolling window 的均值、最差值和波动范围。
+- Active timeline：模拟 active 版本变化、would_promote 次数、blocked 次数、needs_review 次数。
+- Recommendation panel：winning config、需要人工复核的证据项、进入 Continuous Learning 的条件。
+
+下一步动作：
+
+- `Use winning config` -> `Continuous Learning`
+- `Adjust policy` -> 当前页
+- `Inspect blocked run` -> `History`
+
+代表性状态：
+
+- empty：尚未选择候选方向或策略。
+- running：策略模拟运行中。
+- partial_failed：部分数据分区或组合失败，但成功结果可评估。
+- completed：产生推荐结论和效果指标。
+- blocked：数据质量、标签覆盖率或指标退化触发阻断。
+- needs_review：指标有提升但存在退化、漂移或 proxy 评估风险。
+
 ## Continuous Learning
 
 页面目标：
 
-- 展示持续学习如何从数据窗口产生 train job 与 candidate model。
+- 展示 winning config 如何从数据窗口产生 train job 与 candidate model。
 - 明确训练任务状态与模型生命周期状态的区别。
 
 用户动作：

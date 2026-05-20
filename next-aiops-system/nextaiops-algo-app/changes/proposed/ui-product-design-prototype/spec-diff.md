@@ -14,6 +14,16 @@
 
 当前产品体验尚未具备经过 review 的 M2 持续学习信息架构，也没有正式定义模型版本、晋级、回滚与客户演示叙事。
 
+当前 UI 也没有把 M2 当前阶段的实验优先范围表达清楚：
+
+```text
+不同数据集上的算法实验
+批量比较与候选方向选择
+每日新增数据后的离线策略模拟
+策略模拟效果指标与推荐结论
+最终模型生命周期主流程承接
+```
+
 当前 UI 也没有明确区分：
 
 ```text
@@ -38,6 +48,7 @@ docs/product/ui/
   interaction-states.md
   visual-guidelines.md
   tech-decision.md
+  offline-model-lifecycle.drawio
   prototype/index.html
 ```
 
@@ -48,6 +59,7 @@ Overview
 Data
 Experiments
 Batch Compare
+Strategy Simulation
 Continuous Learning
 Models
 History
@@ -77,6 +89,31 @@ candidate vs active 指标差异
 关键 artifact 链接
 promote / rollback 审计记录
 ```
+
+M2-024 还必须定义实验优先闭环与离线策略模拟：
+
+```text
+Data
+→ Experiments
+→ Batch Compare
+→ Candidate Direction
+→ Strategy Simulation
+→ Winning Config
+```
+
+离线策略模拟必须输出数据实验效果指标：
+
+```text
+precision / recall / f1 / pa_f1
+误报数 / 漏报数
+跨 dataset version / rolling window 稳定性
+would_promote_count / needs_review_count / blocked_count
+模拟 active timeline
+相对当前 active 的指标 delta
+label_coverage / evaluation mode / data quality / drift
+```
+
+真实无人值守 `auto-active` 不进入 M2 当前实现范围；M2 只要求设计并后续支持 dry-run / backtest / recommendation 形态的离线策略模拟。
 
 `interaction-states.md` 必须区分以下状态层次：
 
@@ -119,8 +156,11 @@ M3 可演进性
 - **新增**：
   - `changes/proposed/ui-product-design-prototype/` 下的 M2-024 proposal 包。
   - `docs/product/ui/` 下的后续设计文档契约。
+  - `docs/product/ui/offline-model-lifecycle.drawio` 的离线模型生命周期与策略模拟流程图契约。
   - `docs/product/ui/prototype/index.html` 的后续静态原型契约。
   - proposal 与后续 M2-024 设计交付物以中文为主的语言约定。
+  - 实验优先闭环与 M2 离线策略模拟设计要求。
+  - 策略模拟效果指标和数据可信度指标要求。
   - 候选模型晋级 evidence panel 的设计要求。
   - UI 通用状态、长任务状态与领域生命周期状态的分层要求。
   - UI 技术选型 rubric。

@@ -79,7 +79,7 @@ M2-024 文档中如出现“上线 / 生效”，只表示模型版本在模型�
 
 - 若有待复核 candidate model，进入 `Models`。
 - 若数据质量异常，进入 `Data`。
-- 若需要解释候选模型来源，进入 `Continuous Learning`。
+- 若需要解释候选模型来源，先进入 `Strategy Simulation` 查看 winning config 依据，再承接到 `Continuous Learning`。
 
 ### 2. Data：回答“模型从哪些数据学习”
 
@@ -132,10 +132,29 @@ M2-024 文档中如出现“上线 / 生效”，只表示模型版本在模型�
 
 下一步动作：
 
-- 选择表现稳定的候选配置进入 `Continuous Learning`。
+- 选择表现稳定的候选方向进入 `Strategy Simulation`。
 - 对失败组合进入 run detail 或 history 追溯。
 
-### 5. Continuous Learning：回答“平台如何持续学习”
+### 5. Strategy Simulation：回答“策略是否足够稳健”
+
+演示目标：
+
+- 模拟每日新增数据后的训练、评估与 auto-active 策略。
+- 在 dry-run / backtest / recommendation 形态下输出策略决策和数据实验效果指标。
+- 明确当前阶段不自动修改真实 active pointer。
+
+关键叙事：
+
+- 策略模拟优先服务实验平台，用来判断候选方向能否跨数据版本稳定成立。
+- 页面必须同时展示 `would_promote` / `needs_review` / `blocked` 决策和 F1 / PA-F1 / 误报漏报 / active delta 等效果指标。
+- 通过策略模拟后沉淀的是 winning config，而不是直接上线模型。
+
+下一步动作：
+
+- 策略稳健时进入 `Continuous Learning`。
+- 策略存在阻断或需复核时回到 `Batch Compare` 调整候选方向，或进入 `History` 查看失败上下文。
+
+### 6. Continuous Learning：回答“平台如何持续学习”
 
 演示目标：
 
@@ -153,7 +172,7 @@ M2-024 文档中如出现“上线 / 生效”，只表示模型版本在模型�
 - completed job 进入 `Models` 查看候选模型证据。
 - failed job 进入 `History` 查看失败上下文。
 
-### 6. Models：回答“为什么这个模型可以晋级”
+### 7. Models：回答“为什么这个模型可以晋级”
 
 演示目标：
 
@@ -196,7 +215,7 @@ M2-024 文档中如出现“上线 / 生效”，只表示模型版本在模型�
 - evidence 不足：进入相关数据、实验或训练任务详情。
 - 已生效后：进入 `History` 查看审计记录。
 
-### 7. History：回答“生效后如何追溯与回滚”
+### 8. History：回答“生效后如何追溯与回滚”
 
 演示目标：
 
@@ -224,17 +243,15 @@ M2-024 文档中如出现“上线 / 生效”，只表示模型版本在模型�
 Data
   -> Experiments
   -> Batch Compare
-  -> Strategy Simulation
-  -> Training Config
   -> Candidate Direction
+  -> Strategy Simulation
+  -> Winning Config
 ```
 
 最终承接闭环：
 
 ```text
-Data
-  -> Experiments
-  -> Batch Compare
+Winning Config
   -> Continuous Learning
   -> Models
   -> History
@@ -247,7 +264,7 @@ Data
 - `Batch Compare` 在不同数据集、算法和参数之间形成候选方向。
 - `Strategy Simulation` 模拟每日新增数据后的训练、评估和 auto-active 策略，帮助判断策略是否足够稳健。
 - `Strategy Simulation` 必须展示实验效果指标，包括单次 F1 / PA-F1、跨数据集稳定性、策略模拟切换次数、相对 active 的指标 delta、数据质量和 label coverage。
-- `Continuous Learning` 将候选方向转化为训练任务与候选模型。
+- `Continuous Learning` 将 winning config 转化为训练任务与候选模型。
 - `Models` 用 evidence 决定是否晋级。
 - `History` 负责生效后的追溯与回滚。
 

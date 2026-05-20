@@ -107,6 +107,8 @@ Settings
 - Candidate evidence completeness。
 - Latest train job。
 - Batch compare best candidate。
+- Strategy simulation summary。
+- Cross-dataset stability。
 - Data quality score。
 
 指标卡内容：
@@ -120,6 +122,7 @@ Settings
 约束：
 
 - 指标卡不承担复杂解释，复杂证据放到 evidence panel。
+- 策略模拟类指标卡必须同时展示决策和效果，例如 `would_promote_count` 与 PA-F1 delta，而不是只展示策略是否通过。
 - 同一行指标卡高度一致。
 
 ## 表格
@@ -128,6 +131,7 @@ Settings
 
 - Dataset versions。
 - Experiment runs。
+- Strategy simulation reports。
 - Batch results。
 - Train jobs。
 - Model versions。

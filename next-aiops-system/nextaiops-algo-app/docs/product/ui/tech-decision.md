@@ -115,7 +115,8 @@ M2-029 如果采用重构 Streamlit，应做：
 
 - 按 M2-024 信息架构组织页面。
 - 引入明确页面模块和组件模块。
-- 展示 Data、Experiments、Batch Compare、Continuous Learning、Models、History 的核心闭环。
+- 展示 Data、Experiments、Batch Compare、Strategy Simulation、Continuous Learning、Models、History 的核心闭环，其中 Strategy Simulation 是 M2 的一级模块，而不是 Continuous Learning 的附属说明。
+- 优先支持多数据集实验矩阵、批量比较、离线策略模拟报告和效果指标。
 - 使用 evidence panel 支撑 candidate promotion 叙事。
 - 保留静态或 mock fallback，便于 demo。
 
@@ -124,6 +125,8 @@ M2-029 不应做：
 - 不新增独立前端工程。
 - 不引入认证 / 权限。
 - 不实现多租户。
+- 不实现无人值守真实 auto-active。
+- 不为了策略模拟自动修改真实 active pointer。
 - 不为了 UI 重构修改 core 契约。
 - 不在没有 proposal 的情况下修改 SQLite schema。
 
@@ -134,6 +137,7 @@ M2-029 不应做：
 - 复杂交互不追求正式 SaaS 产品级体验。
 - 长任务刷新可以用手动刷新或轻量轮询表达，不追求实时协作。
 - 复杂表格可以先保留基础筛选和排序，不追求完整数据网格。
+- 策略模拟可先以离线批处理结果、指标表和 active timeline 呈现，不追求实时调度编排。
 - 视觉精度以信息清晰为主，不追求像素级还原静态 HTML 原型。
 
 ## 迁移触发条件
