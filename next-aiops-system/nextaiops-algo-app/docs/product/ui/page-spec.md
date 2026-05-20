@@ -45,7 +45,19 @@ HTML 原型演示样例：
 Overview -> Data -> Experiments -> Batch Compare -> Continuous Learning -> Models -> History
 ```
 
-离线 model 生命周期应以训练数据集、训练任务、模型 artifact、模型版本注册和晋级事件为主轴。推荐先以 drawio 作为流程 source of truth，再回填 HTML 原型：
+当前阶段的流程重心应先放在实验与策略模拟，而不是急于落地主流程。推荐先以 drawio 作为流程 source of truth，再回填 HTML 原型。
+
+优先关注的实验闭环：
+
+```text
+Daily Data Partition -> Dataset Selection -> Experiment Run
+-> Batch Compare -> Training Config -> Strategy Simulation
+-> Candidate Direction
+```
+
+该闭环用于充分比较不同数据集、算法、参数和自动 active 策略，挑选更可靠的候选方向。
+
+最终承接主流程：
 
 ```text
 Daily Data Partition -> Training Dataset Version -> Train Job -> Model Artifact
@@ -53,7 +65,7 @@ Daily Data Partition -> Training Dataset Version -> Train Job -> Model Artifact
 -> Active Model / Archived Previous Model
 ```
 
-`experiment run` 与 `batch run` 是探索、算法参数选择和证据引用来源，不应被表达为 model artifact 的直接生产步骤。
+`experiment run` 与 `batch run` 是当前阶段的优先工作对象：它们负责探索不同数据集上的算法表现、形成训练配置和策略证据；它们不应被表达为 model artifact 的直接生产步骤。
 
 每日新增数据后的自动训练、评估与 `auto-active` 策略可以在流程图中作为 M2+ / 演示策略模拟支线表达，但不得混同为 M2-028 当前实现范围。M2-028 的主线仍是 manual promotion。
 

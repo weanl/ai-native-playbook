@@ -216,6 +216,21 @@ M2-024 文档中如出现“上线 / 生效”，只表示模型版本在模型�
 
 ## 核心闭环
 
+当前阶段应优先围绕实验平台形成闭环，先把不同数据集、算法、参数和策略模拟跑充分，再把胜出配置承接到训练任务、模型版本和晋级主流程。
+
+优先实验闭环：
+
+```text
+Data
+  -> Experiments
+  -> Batch Compare
+  -> Strategy Simulation
+  -> Training Config
+  -> Candidate Direction
+```
+
+最终承接闭环：
+
 ```text
 Data
   -> Experiments
@@ -229,7 +244,8 @@ Data
 
 - `Data` 定义模型学习来源。
 - `Experiments` 解释单次算法行为。
-- `Batch Compare` 形成候选方向。
+- `Batch Compare` 在不同数据集、算法和参数之间形成候选方向。
+- `Strategy Simulation` 模拟每日新增数据后的训练、评估和 auto-active 策略，帮助判断策略是否足够稳健。
 - `Continuous Learning` 将候选方向转化为训练任务与候选模型。
 - `Models` 用 evidence 决定是否晋级。
 - `History` 负责生效后的追溯与回滚。
