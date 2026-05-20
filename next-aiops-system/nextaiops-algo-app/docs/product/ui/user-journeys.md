@@ -246,6 +246,7 @@ Data
 - `Experiments` 解释单次算法行为。
 - `Batch Compare` 在不同数据集、算法和参数之间形成候选方向。
 - `Strategy Simulation` 模拟每日新增数据后的训练、评估和 auto-active 策略，帮助判断策略是否足够稳健。
+- `Strategy Simulation` 必须展示实验效果指标，包括单次 F1 / PA-F1、跨数据集稳定性、策略模拟切换次数、相对 active 的指标 delta、数据质量和 label coverage。
 - `Continuous Learning` 将候选方向转化为训练任务与候选模型。
 - `Models` 用 evidence 决定是否晋级。
 - `History` 负责生效后的追溯与回滚。

@@ -57,6 +57,13 @@ Daily Data Partition -> Dataset Selection -> Experiment Run
 
 该闭环用于充分比较不同数据集、算法、参数和自动 active 策略，挑选更可靠的候选方向。
 
+M2 离线策略模拟必须输出数据实验效果指标，不能只输出 `would_promote` / `needs_review` / `blocked` 决策。指标至少分四类：
+
+- 单次实验效果：`precision`、`recall`、`f1`、`pa_f1`、误报数、漏报数。
+- 跨数据集稳定性：按 dataset version / rolling window 展示均值、最差值、方差或波动范围。
+- 策略模拟效果：`would_promote_count`、`blocked_count`、`needs_review_count`、模拟 active timeline、相对当前 active 的指标 delta、退化次数。
+- 数据可信度：`label_coverage`、evaluation mode、数据质量分、漂移提示、invalid / partial_failed 影响范围。
+
 最终承接主流程：
 
 ```text

@@ -88,7 +88,7 @@
         <mxCell id="auto-train" value="Scheduled Train + Evaluate&#xa;训练 candidate 并生成 evidence&#xa;失败转人工检查" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" parent="1" vertex="1">
           <mxGeometry x="590" y="315" width="220" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="auto-policy" value="Auto-Active Policy&#xa;min metric delta / max regression&#xa;label coverage / data quality / drift" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" parent="1" vertex="1">
+        <mxCell id="auto-policy" value="Effect Metrics + Policy&#xa;F1 / PA-F1 / FP / FN / delta&#xa;label coverage / quality / drift" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" parent="1" vertex="1">
           <mxGeometry x="870" y="315" width="240" height="70" as="geometry" />
         </mxCell>
         <mxCell id="auto-gate" value="Policy pass?&#xa;策略是否通过" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff8ea;strokeColor=#ffd99b;fontColor=#694000;align=center;verticalAlign=middle;fontSize=12;" parent="1" vertex="1">
@@ -102,6 +102,9 @@
         </mxCell>
         <mxCell id="auto-active" value="Auto Update Active&#xa;candidate -&gt; active&#xa;previous active archived" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f6f1;strokeColor=#6abf9f;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" parent="1" vertex="1">
           <mxGeometry x="1830" y="315" width="190" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="auto-report" value="Simulation Report&#xa;active timeline + promote / blocked counts&#xa;per-dataset stability + regressions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f2ff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="1320" y="410" width="250" height="70" as="geometry" />
         </mxCell>
         <mxCell id="scope-note" value="边界说明：本图描述 M2 离线模型生命周期；active 只表示模型注册表中的生效版本，不表示在线 serving、生产流量切换、多租户权限或自动发布。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8ea;strokeColor=#ffd99b;fontColor=#694000;align=left;verticalAlign=middle;spacing=12;" parent="1" vertex="1">
           <mxGeometry x="40" y="980" width="2005" height="58" as="geometry" />
@@ -218,6 +221,9 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e-auto-gate-review" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#c94343;fontSize=12;" parent="1" source="auto-gate" target="auto-review" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-auto-gate-report" value="输出指标报告" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=open;dashed=1;strokeColor=#8b5cf6;fontSize=12;" parent="1" source="auto-gate" target="auto-report" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e-auto-gate-event" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#8b5cf6;fontSize=12;" parent="1" source="auto-gate" target="auto-event" edge="1">

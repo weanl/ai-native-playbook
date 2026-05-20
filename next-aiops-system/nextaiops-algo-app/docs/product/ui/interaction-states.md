@@ -122,6 +122,33 @@ Evidence panel 必须至少展示：
 - `proxy` 模式必须说明 proxy 来源和可信度，默认进入 `needs_review`。
 - 指标可信度不足时，Promote 表现不得是直接可晋级。
 
+## 策略模拟效果指标
+
+M2 若实现离线 `auto-active` 策略模拟，页面必须同时展示策略决策与数据实验效果指标。
+
+模型实验指标：
+
+- `precision`、`recall`、`f1`、`pa_f1`。
+- 误报数、漏报数。
+- candidate vs active 指标 delta。
+
+跨数据集稳定性指标：
+
+- 按 dataset version / rolling window 展示指标均值、最差值和波动范围。
+- 标记 partial_failed 组合及其影响范围。
+
+策略模拟指标：
+
+- `would_promote_count`、`needs_review_count`、`blocked_count`。
+- 模拟 active timeline。
+- 自动切换次数、退化次数、回滚建议次数。
+
+数据可信度指标：
+
+- `label_coverage`。
+- evaluation mode：`labeled` / `unlabeled` / `proxy`。
+- 数据质量分、漂移提示和 invalid 分区影响。
+
 ## 交互规则
 
 - 禁用按钮必须说明原因，不能只置灰。
