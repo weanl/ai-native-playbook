@@ -1502,9 +1502,14 @@ make smoke-tsbuad
 
 ---
 
-# M2 任务拆解：持续学习与模型生命周期管理
 
-> M2 聚焦客户最关心的问题：算法如何基于线上持续累积的数据，对数据特征进行持续学习，并形成可评估、可上线、可回滚的模型版本。
+---
+
+# M2 任务拆解：滚动算法实验 MVP
+
+> M2 聚焦一个 MVP 问题：一次导入多天数据后，平台如何按日滚动训练模型、自动切换实验 active 模型、对后续时间段推理，并比较不同算法效果？
+>
+> 本阶段不实现生产模型注册、manual promotion、回滚、在线 serving 或流量切换。这些能力延后到 M2+/M3。
 >
 > 从 M2 开始，任何新增功能必须先按 `changes/_template/` 在 `changes/proposed/<id>/` 下写 proposal，明确目标、范围、spec diff、任务和验收标准。
 >
@@ -1512,48 +1517,57 @@ make smoke-tsbuad
 
 ## M2 总目标
 
-将 NextAIOpsAlgoApp 从“实验验证平台”推进为“持续学习型算法平台”。
+将 NextAIOpsAlgoApp 从"实验验证平台"推进为"滚动算法实验平台"。
 
-目标闭环：
+MVP 目标闭环：
 
 ```text
-Daily Data
-→ Dataset Partition
-→ Training Dataset Version
-→ Train Job
-→ Model Version
-→ Evaluation Report
-→ Promotion
-→ Active Model
+Import Multi-Day Dataset
+→ Build Day Partitions
+→ Configure Experiment Policy
+→ Freeze Experiment Context
+→ Rolling Train / Validate / Active / Infer Loop
+→ Prediction Ledger
+→ Metrics & Algorithm Ranking
 ```
 
 面向客户的能力表达：
 
 ```text
-平台可按天接收线上新增数据，将最近一天数据与历史窗口数据组合成可追溯的训练数据集版本；
-算法基于该训练集重新学习指标分布特征，例如均值、方差、分位数、异常阈值或模型参数；
-每次训练产出新的候选模型版本，并与当前线上模型进行评估对比；
-满足晋级条件后，模型可被标记为 active model，并支持后续回滚和追溯。
+平台一次导入包含多天的数据，按天切分为日分区；
+对每个 cutoff day D，使用 <= D 的数据训练与验证模型 M_D；
+M_D 默认成为 D 之后到下一次训练前的 active 模型；
+使用 active 模型对后续时间段推理，生成 prediction ledger；
+汇总多日推理结果，比较不同算法与参数组合的效果。
 ```
+
+**与原 M2 计划的差异**：
+
+原 M2 计划定义了完整模型生命周期（数据版本 → 训练任务 → 模型版本 → 模型晋级 → 工作台）。
+M2-024 设计结论将范围收敛为滚动实验 MVP，大幅简化了后端需求：
+- 不做真实模型注册表，只在实验上下文内追踪模型
+- 不做 manual promotion，只做 auto-active 策略模拟
+- 不做生产 active pointer 修改
+- 不做持久化模型 artifact 导出
+
+因此 M2-025~027 各取 MVP 子集，原 M2-028（模型晋级生命周期）与 M2-029（完整工作台）合并简化。
 
 ## M2 总验收线
 
 完成 M2 后，应至少满足：
 
-- [ ] 完成正式 UI 产品设计：信息架构、关键页面、核心流程、视觉规范、交互状态
-- [ ] UI 设计文档落地到 `docs/product/ui/*`，不在该阶段修改 UI 代码
-- [ ] 完成 UI 技术选型评估，明确继续使用 Streamlit 或迁移到更正式前端的判断依据
-- [ ] 支持按天登记线上新增数据分区
-- [ ] 支持基于 rolling window 构建训练数据集版本
-- [ ] 每个训练数据集版本有稳定 fingerprint
-- [ ] 支持基于训练数据集执行 train job
-- [ ] `three_sigma` / `iqr` 至少支持生成可保存、可加载、可复用的模型 artifact
-- [ ] 支持 model version 记录
-- [ ] 支持 candidate / active / archived 模型状态
-- [ ] 支持候选模型与当前 active model 的指标对比
-- [ ] 支持手动 promote 新模型为 active model
-- [ ] 支持使用指定 model version 对新数据执行 predict
-- [ ] 所有新增能力均先经过 `changes/proposed/<id>/` proposal review
+- [x] 完成正式 UI 产品设计：信息架构、关键页面、核心流程、视觉规范、交互状态
+- [x] UI 设计文档落地到 `docs/product/ui/*`
+- [x] 完成 UI 技术选型评估：M2-029 继续用 Streamlit 实现 MVP
+- [ ] 支持按天切分导入数据为日分区
+- [ ] 支持按 cutoff day D 构建累积训练窗口（<= D 的数据）
+- [ ] 支持在训练窗口内切分 train / validate
+- [ ] 数据质量检查：schema 完整性、label coverage、无效分区标记
+- [ ] 支持滚动训练循环：对每个 cutoff day 调用 algo.fit() + algo.detect()
+- [ ] 支持 auto-active 策略：M_D 自动成为 (D, next_training_day) 区间的 active 模型
+- [ ] 支持 prediction ledger：每条推理结果记录 active_model_id
+- [ ] 支持算法效果排行：跨日汇总 PA-F1、稳定性、退化项
+- [ ] Streamlit 滚动实验工作台：Data / Policy / Rolling Experiment / Results 四个页面
 - [ ] 不破坏 M0 ~ M1.6 的 run / batch / bundle / UI 既有行为
 
 ---
@@ -1590,27 +1604,24 @@ Daily Data
 
 | 能力 | 当前状态 |
 | --- | --- |
-| 算法接口 | 有 `fit(data)` / `detect(data)`，但无 `predict()` / `save()` / `load()` |
-| 统计类算法状态 | `three_sigma` / `iqr` 只在实例内保存 `_stats` |
-| TSB-UAD 模型状态 | adapter 内存中保存 `_metric_models` 等，不形成平台模型版本 |
+| 算法接口 | 有 `fit(data)` / `detect(data)`，满足 MVP 滚动训练/推理需求 |
+| 统计类算法状态 | `three_sigma` / `iqr` 在实例内保存 `_stats`，MVP 可在实验上下文内保持 |
+| TSB-UAD 模型状态 | adapter 内存中保存 `_metric_models` 等，MVP 同上 |
 | DatasetBundle | 可表达多文件集合，但不能表达 day partition / rolling window |
 | SQLite schema | 仅有 `runs` / `metrics` / `batches` / `batch_runs` |
-| 数据指纹 | 未实现 |
-| 训练任务 | 未实现 |
-| 模型版本 | 未实现 |
-| active model | 未实现 |
-| train / export / predict / promote CLI | 未实现 |
-| 新旧模型对比 | 未实现 |
+| 日分区 | 未实现 |
+| 滚动训练/推理循环 | 未实现 |
+| auto-active 策略 | 未实现 |
+| prediction ledger | 未实现 |
+| 滚动实验 CLI | 未实现 |
 
-因此 M2 的第一优先级不是继续增加算法，而是并行推进两条主线，并在持续学习工作台汇合：
+M2 MVP 推进路径：
 
 ```text
-设计轨：UI 产品设计 → 技术选型评估 → M2-029 工作台实现
-领域轨：数据版本
-→ 训练任务
-→ 模型版本
-→ 模型晋级
-→ M2-029 工作台实现
+M2-024 ✅ (UI 设计已完成)
+M2-025 → 数据层：日分区 + 累积训练窗口 + 质量检查
+M2-026 → 执行层：滚动训练/推理循环 + auto-active + prediction ledger + 排行
+M2-027 → 工作台：Streamlit 滚动实验四页面
 ```
 
 ---
@@ -1620,43 +1631,45 @@ Daily Data
 | 顺序 | Proposal ID | 标题 | 目标 | 是否允许修改 core/ 既有接口 |
 | ---: | --- | --- | --- | --- |
 | 024 | `ui-product-design-prototype` | UI 产品设计 + 可评审 HTML 原型 | 信息架构、用户旅程、页面蓝图、静态 HTML 原型、技术选型评估 | 否 |
-| 025 | `continuous-learning-dataset-versioning` | 持续学习数据集版本化 | 每日数据分区 + rolling window 训练数据集版本 | 否 |
-| 026 | `trainable-model-artifacts` | 可训练模型 artifact | three_sigma / iqr 生成可保存、可加载模型 | 默认否；如必须修改需 ADR |
-| 027 | `model-version-registry` | 模型版本注册表 | train job / model version / model artifact 元数据管理 | 否 |
-| 028 | `model-promotion-lifecycle` | 模型晋级生命周期 | candidate / active / archived / promote / rollback | 否 |
-| 029 | `continuous-learning-workbench-implementation` | 持续学习工作台实现 | 基于 M2-024 设计落地数据分区、训练集、模型版本、新旧对比 UI | 否 |
-| 030 | `scheduled-training-integration` | 周期训练集成 | 为外部调度器或后续 scheduler 暴露稳定入口 | 否，延后 |
+| 025 | `rolling-experiment-data-layer` | 滚动实验数据层 | 日分区 + 累积训练窗口 + 数据质量检查 | 否 |
+| 026 | `rolling-experiment-engine` | 滚动实验执行引擎 | 滚动训练/推理循环 + auto-active 策略 + prediction ledger + 排行 | 默认否；如需扩展 core/ 需 ADR |
+| 027 | `rolling-experiment-workbench` | 滚动实验工作台 | Streamlit 四页面：Data / Policy / Rolling Experiment / Results | 否 |
 
-M2 推荐只承诺 024 ~ 029。  
-030 可作为 M2+ 或 M3 候选，避免过早引入调度器、队列、服务化复杂度。
+M2 承诺 024 ~ 027。024 已完成。
+
+原 M2-028（模型晋级生命周期）、M2-029（完整持续学习工作台）、M2-030（周期训练集成）延后到 M2+/M3。
 
 ---
 
-# M2-024：ui-product-design-prototype
+# M2-024：ui-product-design-prototype ✅ 已完成
+
+> 已合入 main。产出：
+> - `docs/product/ui/user-journeys.md`
+> - `docs/product/ui/page-spec.md`
+> - `docs/product/ui/interaction-states.md`
+> - `docs/product/ui/visual-guidelines.md`
+> - `docs/product/ui/tech-decision.md`
+> - `docs/product/ui/offline-model-lifecycle.drawio`
+> - `docs/product/ui/prototype/index.html`
+>
+> 技术选型结论：M2-027 继续用 Streamlit 实现 MVP，不迁移前端。
+> MVP 范围收敛为滚动实验 + auto-active 策略模拟，不包含生产模型注册、manual promotion、回滚。
+
+---
+
+# M2-025：rolling-experiment-data-layer
 
 ## 目标
 
-先完成正式 UI 产品设计，并产出可本地打开、可评审、带用户旅程解释的静态 HTML 原型，避免后续工作台实现继续被现有 Streamlit 页面结构反向约束产品体验。
-
-M2-024 是 UI 实现前置，不阻塞 M2-025 ~ M2-028 的数据、训练、模型版本与晋级主线。  
-M2-024 只阻塞 M2-029 的 UI implementation。
-
-本阶段重点回答：
+为滚动实验 MVP 建立数据层基础，使平台能够：
 
 ```text
-这个算法平台应该如何被客户理解和使用？
-哪些页面承载核心工作流？
-数据、实验、批量评估、模型版本、上线模型之间如何导航？
-当前 Streamlit 是否仍能承载目标体验？
-```
-
-设计必须围绕客户演示主线，而不是只追求页面好看：
-
-```text
-模型从哪些数据学习？
-学到了什么数据特征？
-为什么这个候选模型可以上线？
-上线后如何追溯与回滚？
+一次导入包含多天的数据
+→ 按天切分为日分区
+→ 数据质量检查（schema、label coverage）
+→ 标记无效分区（排除原因）
+→ 对每个 cutoff day D 构建累积训练窗口（<= D 的数据）
+→ 在训练窗口内切分 train / validate
 ```
 
 ## 范围
@@ -1665,189 +1678,46 @@ M2-024 只阻塞 M2-029 的 UI implementation。
 
 Proposal 应定义：
 
-- 目标用户与核心场景
-- 客户演示主线与用户旅程
-- 全局信息架构
-- 主导航结构
-- 关键页面清单
-- 单算法实验页重构方向
-- 批量实验页重构方向
-- 持续学习 / 模型管理页面蓝图
-- 统一视觉规范：颜色、字体层级、表格、指标卡、状态标签、矩阵、详情区、空状态、错误状态
-- 关键交互状态：加载中、运行中、失败、部分失败、不可操作、已完成、已晋级
-- UI 技术选型评估标准：继续 Streamlit、重构 Streamlit、或迁移到 React / Next.js 等正式前端
-- 可本地打开的静态 HTML 原型交付方式
-
-Proposal 通过后的 implementation PR 只允许新增 / 修改：
-
-- `docs/product/ui/`
-
-implementation PR 应产出设计文档与静态 HTML 原型，不修改 `src/`、不重构 UI 代码、不新增前端工程。
-
-必须规划以下设计交付物：
-
-1. `docs/product/ui/user-journeys.md`
-2. `docs/product/ui/page-spec.md`
-3. `docs/product/ui/interaction-states.md`
-4. `docs/product/ui/visual-guidelines.md`
-5. `docs/product/ui/tech-decision.md`
-6. `docs/product/ui/prototype/index.html`
-
-其中 `prototype/index.html` 必须是可本地打开的静态 HTML 原型，用 mock 数据展示核心页面和用户旅程说明，不连接真实后端，不调用 pipeline，不引入新运行时依赖。
+- `DayPartition`：日期、行数、label coverage、质量状态、排除原因
+- `cumulative_training_window(cutoff_day)` 构建逻辑
+- 训练窗口内 train / validate 切分策略
+- 数据质量检查规则（schema 完整性、label coverage 门槛）
+- 无效分区处理：标记排除原因，不参与实验
+- 与现有 `DatasetBundle` / `read_to_table` 的关系
 
 ## 非目标
 
 本 change 不做：
 
-- 直接重构 `src/nextaiops_algo/ui/app.py`
-- 修改任何 `src/` 代码
-- 直接新增前端工程
-- 直接迁移到 React / Next.js
-- 实现持续学习业务逻辑
-- 修改 SQLite schema
-- 修改 `core/` 既有接口
-- 修改 `tests/`
-- 修改 `storage/schema.sql`
-- 修改 `pyproject.toml`
-- 引入新运行时依赖
-
-## 页面蓝图草案
-
-建议至少覆盖：
-
-```text
-Overview
-Data
-Experiments
-Batch Compare
-Continuous Learning
-Models
-History
-Settings
-```
-
-关键页面职责：
-
-- `Overview`：展示当前 active model、最近训练、最近实验、系统状态
-- `Data`：展示数据分区、schema、fingerprint、数据质量
-- `Experiments`：承载现有单算法实验能力
-- `Batch Compare`：承载现有批量评估、排行榜、矩阵、热力图
-- `Continuous Learning`：展示 rolling window、train job、训练数据集版本
-- `Models`：展示 model versions、candidate vs active、promote / rollback
-- `History`：统一 run / batch / train job / promotion event 查询
-
-## 技术选型评估草案
-
-Proposal 应明确评估：
-
-- 继续 Streamlit 的边界与可接受妥协
-- 何时需要迁移到正式前端
-- 如果继续 Streamlit，如何组织页面、状态与组件，降低单文件 UI 膨胀
-- 如果迁移前端，M2 是否只做设计，M3 再做工程化迁移
-
-默认建议：
-
-```text
-M2-024 只做设计和技术判断；
-M2-029 再根据设计结论决定是 Streamlit 重构，还是启动独立前端 proposal。
-```
-
-## 验收标准
-
-Proposal 通过后，应至少产出：
-
-- [ ] 用户角色与核心用例列表
-- [ ] 全局导航与页面信息架构
-- [ ] 关键页面低保真结构
-- [ ] 客户演示主线：模型从哪些数据学习、学到了什么、为什么能上线、如何追溯和回滚
-- [ ] 核心流程图：数据 → 实验 → 批量评估 → 持续学习 → 模型上线
-- [ ] 视觉规范草案
-- [ ] 交互状态清单
-- [ ] Streamlit 是否继续使用的评估结论与理由
-- [ ] 已产出可本地打开的静态 HTML 原型：`docs/product/ui/prototype/index.html`
-- [ ] HTML 原型包含 Overview / Data / Experiments / Batch Compare / Continuous Learning / Models / History / Settings 页面
-- [ ] HTML 原型支持基础页面切换，不连接真实后端
-- [ ] 每个页面包含“页面目标 / 用户动作 / 核心信息 / 下一步动作”说明
-- [ ] HTML 原型展示关键状态：empty / loading / running / failed / partial_failed / candidate / active / archived
-- [ ] 已产出用户旅程文档：`docs/product/ui/user-journeys.md`
-- [ ] 已产出页面功能点说明：`docs/product/ui/page-spec.md`
-- [ ] 已产出交互状态说明：`docs/product/ui/interaction-states.md`
-- [ ] 已产出视觉规范说明：`docs/product/ui/visual-guidelines.md`
-- [ ] 已产出 UI 技术选型评估：`docs/product/ui/tech-decision.md`
-- [ ] M2-024 implementation 不修改 `src/`、`tests/`、`storage/schema.sql`、`pyproject.toml`
-- [ ] 后续 UI implementation proposal 的范围建议
-
----
-
-# M2-025：continuous-learning-dataset-versioning
-
-## 目标
-
-为持续学习场景建立数据层基础，使平台能够表达：
-
-```text
-每日新增数据
-→ 历史窗口选择
-→ 训练数据集版本
-→ 稳定 fingerprint
-→ 后续 train job 可引用
-```
-
-## 范围
-
-本 change 只允许先写 proposal，不直接实现代码。
-
-Proposal 应定义：
-
-- `DatasetPartition`
-- `TrainingDataset`
-- `TrainingPolicy`
-- daily partition ingest 行为
-- rolling window training dataset 构建行为
-- training dataset fingerprint 规则
-- list training datasets 行为
-
-## 非目标
-
-本 change 不做：
-
+- 训练数据集版本化 / fingerprint
 - 模型训练
-- 模型导出
-- 模型版本管理
+- 模型 artifact 持久化
+- 模型版本注册
 - 模型晋级
 - REST API
 - 调度器
-- `fit / predict / save / load` 生命周期改造
-- `core/` 既有接口修改
+- 修改 `core/` 既有接口
 
 ## CLI 草案
 
 ```bash
-nextaiops_algo ingest \
-  --data data/2026-05-18.csv \
-  --date 2026-05-18 \
-  --dataset prod_cpu
+nextaiops_algo rolling \
+  --data data/multi_day.csv \
+  --date-column timestamp \
+  --cadence 1d \
+  --algos three_sigma,iqr \
+  --auto-active latest
 ```
 
-```bash
-nextaiops_algo build-dataset \
-  --dataset prod_cpu \
-  --mode rolling_window \
-  --end-date 2026-05-18 \
-  --history-window-days 30
-```
-
-```bash
-nextaiops_algo list-datasets
-```
+CLI 先在 M2-026 中实现，M2-025 只定义数据层逻辑。
 
 ## 存储草案
 
-建议新增表：
+考虑新增表或在现有 `runs` / `batches` 基础上扩展：
 
 ```text
-dataset_partitions
-training_datasets
+rolling_experiments
+rolling_day_cycles
 ```
 
 但实际 schema 必须在 proposal 中确认，review 通过后才能实现。
@@ -1856,474 +1726,322 @@ training_datasets
 
 Proposal 通过后，implementation 应满足：
 
-- [ ] 能登记指定日期的数据分区
-- [ ] 不通过文件名猜日期，必须显式传入 `partition_date`
-- [ ] 能按 `end_date + history_window_days` 选择训练窗口
-- [ ] schema 不一致时 fail-fast
-- [ ] 相同 partitions + policy 生成相同 fingerprint
-- [ ] policy 或 partitions 改变后 fingerprint 变化
+- [ ] 能将导入数据按指定日期列切分为日分区
+- [ ] 每个日分区有行数、label coverage、质量状态
+- [ ] 无效分区有排除原因（schema 异常、label coverage 不足）
+- [ ] 对 cutoff day D 能构建 <= D 的累积训练窗口
+- [ ] 训练窗口内可按 ratio 切分 train / validate
 - [ ] 不影响现有 `run` / `batch` / `DatasetBundle` 行为
 - [ ] 不修改 `core/` 既有接口
 - [ ] `make test` / `make smoke` 通过
 
 ---
 
-# M2-026：trainable-model-artifacts
+# M2-026：rolling-experiment-engine
 
 ## 目标
 
-让平台至少支持 `three_sigma` / `iqr` 生成可保存、可加载、可复用的模型 artifact，使“算法持续学习数据特征”有第一版落点。
-
-当前算法虽然有 `fit()`，但训练结果只保存在实例内存中：
+实现滚动实验 MVP 的核心执行引擎：
 
 ```text
-three_sigma: _stats
-iqr: _stats
-```
+对每个 cutoff day D：
+  1. 从数据层获取累积训练窗口（<= D）
+  2. 在训练窗口内切分 train / validate
+  3. 对每个算法配置调用 algo.fit(train) + algo.detect(validate)
+  4. 计算 validate 指标
+  5. M_D 成为 (D, next_training_day) 区间的 active 模型
+  6. 使用 M_D 对该区间内的数据进行推理
+  7. 推理结果写入 prediction ledger
+  8. 单算法失败不阻断，标记 partial_failed
 
-M2-026 应将这些训练结果转化为平台可管理的模型 artifact。
+汇总多日结果：
+  - 算法排行（跨日 PA-F1、稳定性、退化项）
+  - active timeline（每天使用的 active 模型）
+  - 排除项汇总
+```
 
 ## 范围
 
+本 change 只允许先写 proposal，不直接实现代码。
+
 Proposal 应定义：
 
-- 统计类模型 artifact 格式
-- model artifact 目录结构
-- train 命令草案
-- predict 命令草案
-- model artifact 与 TrainingDataset 的关系
-- 如何在不修改 `core/` 既有接口的前提下实现模型化
+- `RollingExperiment` / `RollingDayCycle` 数据模型
+- `ExperimentPolicy`：训练周期、auto-active 策略、质量门槛
+- 滚动训练/推理循环执行逻辑
+- auto-active 策略计算：默认 latest trained model auto-active for next interval
+- prediction ledger 数据结构与记录规则
+- 算法排行计算：跨日 mean / median PA-F1、success_rate
+- 单算法失败处理：partial_failed，不阻断其他算法
+- 缺少 active 模型覆盖的时间段标记 blocked
+- CLI 命令设计
 
 ## 非目标
 
 本 change 不做：
 
-- TSB-UAD 模型持久化
-- 深度学习模型导出
-- 自动模型晋级
-- active model 管理
+- 持久化模型 artifact（模型只在实验上下文内存中保持）
+- 生产模型注册表
+- manual promotion
+- 生产 active pointer 修改
 - REST API
 - 调度器
+- 修改 `core/` 既有接口（如需扩展，需 ADR）
 
-## 模型 artifact 草案
+## 关键设计点
+
+### 模型在实验上下文中的生命周期
+
+MVP 不做持久化模型 artifact。模型对象在实验运行期间保持在内存中：
 
 ```text
-.nextaiops_algo/models/<model_id>/
-  model.json
-  params.json
-  training_dataset.json
-  schema.json
-  metrics.json
-  README.md
+models = {}  # {model_id: algo_instance}
+
+for D in cutoff_days:
+    model_id = f"{algorithm_name}[{params}]@D{D}"
+    algo = create_algorithm(name, params)
+    algo.fit(train_window)
+    models[model_id] = algo
+    # detect on validate / active interval
+    predictions = algo.detect(active_interval_data)
 ```
 
-`three_sigma` 的 `model.json` 至少包含：
+每个 `model_id` 由算法名 + 参数 + cutoff day 生成，可追溯但不持久化。
 
-```json
-{
-  "algorithm_name": "three_sigma",
-  "params": {"k": 3.0},
-  "metrics": {
-    "value": {
-      "mean": 10.3,
-      "std": 1.2,
-      "lower": 6.7,
-      "upper": 13.9,
-      "count": 1000
-    }
-  }
-}
+### auto-active 策略
+
+默认策略：`latest trained model auto-active for next interval`
+
+```text
+active_intervals = {}
+
+for D in sorted_cutoff_days:
+    model_id = f"{algo_config}@D{D}"
+    next_D = next_cutoff_day after D  # 或数据末尾
+    active_intervals[model_id] = (D, next_D)
 ```
 
-`iqr` 的 `model.json` 至少包含：
+推理时按 timestamp 命中 active interval，使用对应 model_id 的 algo 实例。
 
-```json
-{
-  "algorithm_name": "iqr",
-  "params": {"k": 1.5},
-  "metrics": {
-    "value": {
-      "q1": 8.0,
-      "q3": 12.0,
-      "iqr": 4.0,
-      "lower": 2.0,
-      "upper": 18.0,
-      "count": 1000
-    }
-  }
-}
+### prediction ledger
+
+每条推理结果记录：
+
+```text
+timestamp
+algorithm_name
+params
+cutoff_day
+active_model_id
+predicted_label
+score
+label  # ground truth
 ```
+
+ledger 可用于排行计算和可视化。
+
+### blocked 时间段
+
+缺少 active 模型覆盖的时间段标记 blocked，不参与 auto-active 统计。页面必须说明缺失时间段，不静默跳过。
 
 ## CLI 草案
 
 ```bash
-nextaiops_algo train \
-  --training-dataset-id <training_dataset_id> \
-  --algo three_sigma \
-  --params '{"k": 3}'
-```
+nextaiops_algo rolling \
+  --data data/multi_day.csv \
+  --date-column timestamp \
+  --cadence 1d \
+  --algos three_sigma,iqr \
+  --auto-active latest \
+  --output ./.nextaiops_algo/rolling_results/
 
-```bash
-nextaiops_algo predict \
-  --model-id <model_id> \
-  --data data/latest.csv
-```
-
-## 验收标准
-
-Proposal 通过后，implementation 应满足：
-
-- [ ] `three_sigma` 训练后生成 `model.json`
-- [ ] `iqr` 训练后生成 `model.json`
-- [ ] `predict` 必须加载 model artifact，不允许重新 `fit`
-- [ ] model artifact 记录 params、schema、training_dataset、训练统计量
-- [ ] 同一模型对同一数据 predict 结果稳定
-- [ ] 不破坏现有 `run_experiment()` 行为
-- [ ] 如需修改 `AnomalyDetector`，必须先补 ADR / 架构评审
-
----
-
-# M2-027：model-version-registry
-
-## 目标
-
-引入模型版本注册能力，使每次 train job 产生的模型 artifact 成为可查询、可追溯、可评估的 model version。
-
-## 范围
-
-Proposal 应定义：
-
-- `TrainJob`
-- `ModelVersion`
-- `ModelStatus`
-- model artifact path 记录方式
-- train job 与 training dataset 的关联
-- model version 与 run / metrics / artifact 的关系
-
-## 非目标
-
-本 change 不做：
-
-- 自动晋级
-- active model
-- rollback
-- REST API
-- 调度器
-- UI 管理页
-
-## 状态草案
-
-```text
-TrainJobStatus:
-- PENDING
-- RUNNING
-- SUCCEEDED
-- FAILED
-- CANCELLED
-
-ModelStatus:
-- CANDIDATE
-- FAILED
-- ARCHIVED
-```
-
-`ACTIVE` 状态放到 M2-028 中引入。
-
-## 存储草案
-
-建议新增表：
-
-```text
-train_jobs
-model_versions
-```
-
-## 验收标准
-
-Proposal 通过后，implementation 应满足：
-
-- [ ] train job 可落库
-- [ ] train job 失败时记录 error_message
-- [ ] 成功 train job 生成 model version
-- [ ] model version 可查询
-- [ ] model version 能追溯到 training dataset
-- [ ] model version 能追溯到 artifact path
-- [ ] 不影响现有 runs / batches 查询
-
----
-
-# M2-028：model-promotion-lifecycle
-
-## 目标
-
-支持模型从候选状态晋级为线上 active model，并保留晋级记录和回滚基础。
-
-## 范围
-
-Proposal 应定义：
-
-- active model 的唯一性规则
-- model scope
-- promote 行为
-- archive 旧模型行为
-- promotion event 记录
-- active model 查询
-- candidate vs active model 对比
-
-## 非目标
-
-本 change 不做：
-
-- 自动晋级策略
-- 多人审批流
-- 权限系统
-- REST API
-- 在线 serving
-- 调度器
-
-## 状态草案
-
-```text
-ModelStatus:
-- CANDIDATE
-- ACTIVE
-- ARCHIVED
-- FAILED
-```
-
-## CLI 草案
-
-```bash
-nextaiops_algo evaluate-model \
-  --model-id <candidate_model_id> \
-  --data data/validation.csv
-```
-
-```bash
-nextaiops_algo promote \
-  --model-id <candidate_model_id> \
-  --scope prod_cpu
-```
-
-```bash
-nextaiops_algo active-model \
-  --scope prod_cpu
+nextaiops_algo list-rolling --limit 10
 ```
 
 ## 存储草案
 
-建议新增表：
+考虑新增表：
 
 ```text
-active_models
-promotion_events
+rolling_experiments
+rolling_day_cycles
+rolling_predictions
 ```
+
+但实际 schema 必须在 proposal 中确认。
 
 ## 验收标准
 
 Proposal 通过后，implementation 应满足：
 
-- [ ] candidate model 可被 promote 为 active
-- [ ] 同一 scope 下最多只有一个 active model
-- [ ] 新模型 active 后，旧 active model 变为 archived
-- [ ] promote 事件可追溯 previous_model_id
-- [ ] 可查询当前 active model
-- [ ] 可对 candidate model 和 active model 做指标对比
-- [ ] 不影响历史 run / batch 行为
+- [ ] 2 个算法 × 3 天数据可跑通滚动实验
+- [ ] 每个 cutoff day 有 train / validate / active / infer 结果
+- [ ] auto-active 策略计算正确：M_D 在 (D, next_D) 区间生效
+- [ ] prediction ledger 包含 active_model_id
+- [ ] 单算法失败标记 partial_failed，其余继续
+- [ ] blocked 时间段有明确标记
+- [ ] 算法排行按跨日 PA-F1 排序
+- [ ] 不破坏现有 `run_experiment` / `run_batch` / `run_batch_bundle` 行为
+- [ ] 如需修改 `core/`，需 ADR
+- [ ] `make test` / `make smoke` 通过
 
 ---
 
-# M2-029：continuous-learning-workbench-implementation
+# M2-027：rolling-experiment-workbench
 
 ## 目标
 
-基于 M2-024 的正式 UI 设计结论，实现持续学习与模型管理工作台，使客户能直观看到：
+基于 M2-024 设计结论，在 Streamlit 中实现滚动实验 MVP 工作台：
 
 ```text
-每日数据
-→ 训练数据集
-→ 训练任务
-→ 模型版本
-→ 当前 active model
-→ 新旧模型对比
+Data        — 导入多天数据，展示日分区与质量
+Policy      — 配置训练周期与 auto-active 策略
+Rolling Experiment — 滚动训练/推理循环进度与结果
+Results     — 算法排行、active timeline、排除项汇总
 ```
 
 ## 范围
 
-Proposal 应引用 M2-024 的设计产物，并定义实现范围。
+Proposal 应引用 M2-024 的设计产物，并定义实现范围：
 
-如果 M2-024 结论是继续使用 Streamlit，则本 change 可以重构现有 Streamlit UI。  
-如果 M2-024 结论是迁移到正式前端，则本 change 应降级为前端工程 proposal，不直接在 Streamlit 中堆功能。
-
-建议页面：
-
-```text
-持续学习 / 模型管理
-```
-
-页面模块：
-
-1. 数据分区列表
-2. 训练数据集版本列表
-3. Train job 列表
-4. Model version 列表
-5. 当前 active model
-6. Candidate vs active 指标对比
-7. Promote 操作入口
+- M2-024 结论：继续使用 Streamlit
+- 实现四页面，复用 M2-025 数据层 + M2-026 执行引擎
+- UI 不写业务逻辑，只调用 pipeline / viz / storage
 
 ## 非目标
 
 本 change 不做：
 
 - 重新定义整体 UI 信息架构（由 M2-024 完成）
+- 实现生产模型注册、manual promotion、回滚页面
 - 权限系统
 - 多人审批
 - 自动调度
 - 在线预测服务
 - REST API
+- 迁移 React / Next.js
+
+## 页面蓝图
+
+### Data
+
+- 导入数据（CSV / 内置数据集 / DatasetBundle）
+- Schema 与字段推断展示
+- 日分区列表：日期、行数、label coverage、质量状态
+- 无效分区内联展示排除原因
+
+### Policy
+
+- 训练周期配置（默认 1 天）
+- auto-active 策略配置（默认 latest model auto-active）
+- 质量门槛展示（后续可配置）
+- 冻结策略按钮 → 进入 Rolling Experiment
+
+### Rolling Experiment
+
+- 算法选择（来自 REGISTRY）
+- 日循环进度：每个 cutoff day 的 train / validate / active / infer 状态
+- 当前循环详情：训练数据范围、验证指标、active interval、推理数量
+- prediction ledger 预览
+- 部分失败提示
+
+### Results
+
+- 算法排行表：跨日 PA-F1、稳定性、success_rate
+- active timeline：每天使用的 active 模型
+- 排除项汇总：blocked 时间段、失败算法、原因
+- 算法 × 日指标矩阵
 
 ## 验收标准
 
 Proposal 通过后，implementation 应满足：
 
-- [ ] 实现方式符合 M2-024 的设计和技术选型结论
-- [ ] UI 能展示 dataset partitions
-- [ ] UI 能展示 training datasets
-- [ ] UI 能展示 train jobs
-- [ ] UI 能展示 model versions
-- [ ] UI 能展示 active model
-- [ ] UI 能展示 candidate vs active 指标对比
-- [ ] UI 不直接写业务逻辑，只调用 pipeline / storage / viz
+- [ ] Streamlit 可完整走通：导入数据 → 配置策略 → 滚动实验 → 查看排行
+- [ ] Data 页展示日分区与质量状态
+- [ ] Policy 页展示策略配置并可冻结
+- [ ] Rolling Experiment 页展示日循环进度
+- [ ] Results 页展示排行与 active timeline
 - [ ] 单算法实验页、批量实验页不回归
+- [ ] UI 不直接写业务逻辑，只调用 pipeline / storage / viz
+- [ ] `make demo` 可启动并走通滚动实验 MVP
 
 ---
 
 ## M2 依赖关系图
 
 ```text
-设计轨：
-M2-024 ui-product-design-prototype
+M2-024 ✅ (UI 设计已完成)
 
-领域轨：
-M2-025 continuous-learning-dataset-versioning
+M2-025 (数据层：日分区 + 累积训练窗口)
    ↓
-M2-026 trainable-model-artifacts
+M2-026 (执行引擎：滚动循环 + auto-active + ledger + 排行)
    ↓
-M2-027 model-version-registry
-   ↓
-M2-028 model-promotion-lifecycle
-
-汇合：
-M2-024 + M2-025~028
-   ↓
-M2-029 continuous-learning-workbench-implementation
+M2-027 (工作台：Streamlit 四页面)
 ```
 
-M2-024 是 UI 实现前置，但不阻塞 M2-025 ~ M2-028 的后端主线。  
-没有正式 UI 设计结论，就不应启动 M2-029 的 UI 实现或 Streamlit 大重构。  
-M2-025 是持续学习数据链路强前置。  
-没有 TrainingDataset，就不应启动 train job / model version。  
-没有 ModelVersion，就不应启动 promotion lifecycle。  
-没有稳定 CLI / storage 闭环，就不应启动 M2-029 的持续学习工作台实现。
+M2-025 是数据链路强前置。没有日分区与训练窗口，就不应启动滚动实验引擎。
+M2-026 是执行层前置。没有引擎，就不应启动 UI 工作台。
+M2-027 依赖 M2-025 + M2-026 + M2-024 设计结论。
 
 ---
 
 ## M2 实施顺序建议
 
-### 第一步：只写 proposal
+### 第一步：写 proposal
 
 ```text
-changes/proposed/ui-product-design-prototype/
-changes/proposed/continuous-learning-dataset-versioning/
-changes/proposed/trainable-model-artifacts/
-changes/proposed/model-version-registry/
-changes/proposed/model-promotion-lifecycle/
-changes/proposed/continuous-learning-workbench-implementation/
+changes/proposed/rolling-experiment-data-layer/
+changes/proposed/rolling-experiment-engine/
+changes/proposed/rolling-experiment-workbench/
 ```
 
-推荐先写并 review `ui-product-design-prototype` 与 `continuous-learning-dataset-versioning`。  
-两者可以并行推进：前者产出 `docs/product/ui/*` 设计文档与静态 HTML 原型，后者启动持续学习数据链路。  
-不要一次性实现所有 proposal，也不要在 M2-024 设计未完成前启动 M2-029。
+推荐先写 `rolling-experiment-data-layer` proposal。
 
 ### 第二步：按 proposal 顺序实现
 
-每个实现 PR 必须引用对应 proposal：
-
-```markdown
-## Scope Anchor
-
-本 PR 实现：
-changes/proposed/ui-product-design-prototype/
-
-## 本 PR 做什么
-
-- 新增 / 更新 `docs/product/ui/*`
-- 产出 UI 信息架构、客户演示主线、页面蓝图、视觉规范、技术选型评估
-- 产出可本地打开的静态 HTML 原型：`docs/product/ui/prototype/index.html`
-
-## 本 PR 不做什么
-
-- 不修改 `src/`
-- 不修改 `tests/`
-- 不修改 `storage/schema.sql`
-- 不修改 `pyproject.toml`
-- 不重构 Streamlit
-- 不新增前端工程
-
-## 验收方式
-
-- [ ] make lint
-- [ ] make test
-- [ ] make smoke
+```bash
+git checkout -b feat/m2-025-rolling-data-layer
+git checkout -b feat/m2-026-rolling-engine
+git checkout -b feat/m2-027-rolling-workbench
 ```
+
+每个 implementation PR 必须引用对应 proposal 作为 scope anchor。
 
 ### 第三步：实现后更新 PLAN 状态
 
-proposal 通过后，可以在 PLAN 中将对应状态从：
-
-```text
-Proposed
-```
-
-改为：
-
-```text
-Accepted
-```
-
-实现完成后改为：
-
-```text
-Completed
-```
+proposal 通过后标记 `Accepted`，实现完成后标记 `Completed`。
 
 ---
 
-## M2 风险与评审问题
+## M2+/M3 候选 proposal
 
-以下问题必须在 proposal review 中确认：
+原 M2-028（模型晋级生命周期）、M2-029（完整持续学习工作台）、M2-030（周期训练集成）移至 M2+/M3，与新增候选一起列出：
 
-1. `DatasetPartition` / `TrainingDataset` 应放入 `core/`，还是放入新的 domain / pipeline 层？
-2. 是否需要 SQLite migration 机制？
-3. fingerprint 基于原始文件 bytes，还是标准化后的 Table？
-4. 多指标文件的训练粒度如何表达？
-5. 最近一天数据中包含异常时，训练集构建是否过滤 `label=1`？
-6. 无 label 数据如何避免把异常学习成正常？
-7. model scope 第一版如何定义？
-8. `predict` 是使用指定 model-id，还是默认使用 active model？
-9. `three_sigma` / `iqr` 是否通过新增 adapter 实现模型持久化，避免修改 `AnomalyDetector`？
-10. TSB-UAD 模型持久化是否进入 M2，还是延后到 M2+？
-11. 是否需要人工 promote，还是支持自动 promote？
-12. M2 是否继续使用 Streamlit，还是只保留 Streamlit 到 M1.6 并为 M3 前端迁移做准备？
-13. 如果继续 Streamlit，是否拆分 `ui/app.py`，避免单文件继续膨胀？
-14. UI 是否允许触发 promote，还是只展示状态？
+| ID | 标题 | 备注 |
+| --- | --- | --- |
+| 028 | 模型晋级生命周期 | 原 M2-028，生产级 candidate/active/archived/promote/rollback |
+| 029 | 持续学习工作台完整版 | 原 M2-029，含生产模型注册、manual promotion、回滚页面 |
+| 030 | 周期训练集成 | 原 M2-030，外部调度器或内置 scheduler |
+| 031 | Frontend engineering migration | 如后续判定 Streamlit 不足 |
+| 032 | TSB-UAD 模型持久化 | 统计类模型 artifact 稳定后再做 |
+| 033 | MLflow optional backend | 基于 model registry / train job 抽象接入 |
+| 034 | REST API for model lifecycle | 暴露 train / predict / model version 查询 |
+| 035 | Scheduled training integration | 外部调度器或内置 scheduler |
+| 036 | AutoML / parameter search | 依赖稳定训练与评估闭环 |
+| 037 | OpenRCA metric subset converter | 将 OpenRCA metric 转为弱标签异常检测 benchmark |
+| 038 | Entity-aware training | 支持 service / instance / metric 级别模型 scope |
+| 039 | Advanced evaluation metrics | Range-F1 / VUS / detection delay / false alarms per hour |
 
 ---
 
 ## M2 不做事项
 
-M2 暂不做：
+M2 MVP 暂不做：
 
+- [ ] 持久化模型 artifact 导出
+- [ ] 生产模型注册表
+- [ ] manual promotion / rollback
+- [ ] 生产 active pointer 修改
 - [ ] 深度学习算法桥接
 - [ ] GPU 训练
 - [ ] 自动调参 / AutoML
@@ -2335,20 +2053,4 @@ M2 暂不做：
 - [ ] 真正 `partial_fit` 在线学习
 - [ ] OpenRCA metric converter
 
-这些能力可以进入 M2+ / M3 候选。
-
----
-
-## M2+ 候选 proposal
-
-| ID | 标题 | 备注 |
-| --- | --- | --- |
-| 031 | Frontend engineering migration | 如 M2-024 判定 Streamlit 不足以承载正式 UI，则进入 M2+ / M3 |
-| 032 | TSB-UAD 模型持久化 | 在统计类模型 artifact 稳定后再做 |
-| 033 | MLflow optional backend | 基于 model registry / train job 抽象接入 |
-| 034 | REST API for model lifecycle | 暴露 train / predict / model version 查询 |
-| 035 | Scheduled training integration | 外部调度器或内置 scheduler |
-| 036 | AutoML / parameter search | 依赖稳定训练与评估闭环 |
-| 037 | OpenRCA metric subset converter | 将 OpenRCA metric 转为弱标签异常检测 benchmark |
-| 038 | Entity-aware training | 支持 service / instance / metric 级别模型 scope |
-| 039 | Advanced evaluation metrics | Range-F1 / VUS / detection delay / false alarms per hour |
+这些能力可以进入 M2+/M3 候选。
