@@ -55,6 +55,8 @@ Daily Data Partition -> Training Dataset Version -> Train Job -> Model Artifact
 
 `experiment run` 与 `batch run` 是探索、算法参数选择和证据引用来源，不应被表达为 model artifact 的直接生产步骤。
 
+每日新增数据后的自动训练、评估与 `auto-active` 策略可以在流程图中作为 M2+ / 演示策略模拟支线表达，但不得混同为 M2-028 当前实现范围。M2-028 的主线仍是 manual promotion。
+
 流程图文件：`docs/product/ui/offline-model-lifecycle.drawio`。
 
 ## Overview
