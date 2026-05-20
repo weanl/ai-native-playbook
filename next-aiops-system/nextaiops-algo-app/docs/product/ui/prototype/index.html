@@ -1,0 +1,1698 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NextAIOps 滚动算法实验工作台</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --surface-strong: #eef2ff;
+      --line: #d8e0ec;
+      --line-soft: #e7edf5;
+      --text: #1f2937;
+      --muted: #667085;
+      --faint: #98a2b3;
+      --brand: #4f46e5;
+      --brand-dark: #3730a3;
+      --brand-soft: #eef2ff;
+      --brand-line: #c7d2fe;
+      --success: #157f5c;
+      --success-soft: #e8f6f0;
+      --warning: #b26412;
+      --warning-soft: #fff6e8;
+      --danger: #b42318;
+      --danger-soft: #fff0ee;
+      --slate: #111827;
+      --shadow: 0 14px 34px rgba(31, 41, 55, 0.08);
+      --shadow-soft: 0 8px 18px rgba(31, 41, 55, 0.06);
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      background: var(--bg);
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button,
+    select {
+      cursor: pointer;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 3px solid rgba(79, 70, 229, 0.22);
+      outline-offset: 2px;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 264px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 18px 14px;
+      background: var(--slate);
+      color: #f8fafc;
+    }
+
+    .brand {
+      padding: 4px 10px 18px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 17px;
+      line-height: 24px;
+      font-weight: 780;
+      letter-spacing: 0;
+    }
+
+    .brand span {
+      display: block;
+      margin-top: 4px;
+      color: #aab4c3;
+      font-size: 12px;
+    }
+
+    .nav {
+      display: grid;
+      gap: 5px;
+    }
+
+    .nav button {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 9px;
+      align-items: center;
+      width: 100%;
+      border: 0;
+      border-radius: var(--radius-sm);
+      padding: 9px 10px;
+      background: transparent;
+      color: #cbd5e1;
+      text-align: left;
+    }
+
+    .nav button:hover,
+    .nav button.active {
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+    }
+
+    .nav-index {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #dbeafe;
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    .nav-meta {
+      display: block;
+      overflow: hidden;
+      color: #94a3b8;
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .side-card {
+      position: absolute;
+      right: 14px;
+      bottom: 16px;
+      left: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius);
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      color: #d1d5db;
+      font-size: 12px;
+    }
+
+    .side-card strong {
+      display: block;
+      color: #ffffff;
+      font-size: 13px;
+    }
+
+    .main {
+      min-width: 0;
+      padding: 22px 28px 38px;
+    }
+
+    .workspace {
+      max-width: 1480px;
+      margin: 0 auto;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: start;
+      margin-bottom: 16px;
+    }
+
+    .eyebrow {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 760;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      margin-bottom: 5px;
+      font-size: 26px;
+      line-height: 34px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin-bottom: 12px;
+      font-size: 17px;
+      line-height: 25px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin-bottom: 7px;
+      font-size: 14px;
+      line-height: 21px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin-bottom: 10px;
+    }
+
+    .subtitle,
+    .muted,
+    .small {
+      color: var(--muted);
+    }
+
+    .small {
+      font-size: 12px;
+    }
+
+    .toolbar,
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .btn,
+    .input,
+    .select {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 8px 11px;
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      border-color: #b8c3d4;
+      background: #fbfcff;
+    }
+
+    .btn.primary {
+      border-color: var(--brand);
+      background: var(--brand);
+      color: #ffffff;
+    }
+
+    .btn.primary:hover {
+      background: var(--brand-dark);
+    }
+
+    .btn.danger {
+      border-color: #f3b7b0;
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .btn.ghost {
+      background: transparent;
+    }
+
+    .btn:disabled,
+    .input:disabled,
+    .select:disabled {
+      color: var(--faint);
+      background: #f1f4f8;
+      cursor: not-allowed;
+    }
+
+    .stepper {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .step {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      background: var(--surface);
+      box-shadow: var(--shadow-soft);
+      text-align: left;
+    }
+
+    .step.active {
+      border-color: var(--brand-line);
+      background: var(--brand-soft);
+    }
+
+    .step.done {
+      border-color: #b9dfce;
+      background: var(--success-soft);
+    }
+
+    .step-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+      font-size: 13px;
+      font-weight: 780;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: grid;
+      gap: 14px;
+    }
+
+    .panel,
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .panel {
+      padding: 16px;
+    }
+
+    .card {
+      min-height: 112px;
+      padding: 15px;
+    }
+
+    .grid-2,
+    .grid-3,
+    .grid-4 {
+      display: grid;
+      gap: 14px;
+    }
+
+    .grid-2 {
+      grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, minmax(220px, 1fr));
+    }
+
+    .grid-4 {
+      grid-template-columns: repeat(4, minmax(170px, 1fr));
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 720;
+    }
+
+    .metric-value {
+      margin: 6px 0 5px;
+      font-size: 26px;
+      line-height: 34px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .metric-sub {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 720;
+      white-space: nowrap;
+    }
+
+    .badge.brand {
+      border-color: var(--brand-line);
+      background: var(--brand-soft);
+      color: var(--brand);
+    }
+
+    .badge.success {
+      border-color: #b9e5d4;
+      background: var(--success-soft);
+      color: var(--success);
+    }
+
+    .badge.warning {
+      border-color: #ffd7a6;
+      background: var(--warning-soft);
+      color: var(--warning);
+    }
+
+    .badge.danger {
+      border-color: #ffc7bf;
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .badge.neutral {
+      border-color: #d8dee8;
+      background: #f2f4f7;
+      color: #475467;
+    }
+
+    .task-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .task-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      padding: 12px;
+      background: var(--surface-soft);
+    }
+
+    .task-row strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .flow-diagram {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(130px, 1fr));
+      gap: 10px;
+    }
+
+    .flow-node {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      background: var(--surface-soft);
+    }
+
+    .filter-bar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 160px auto;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line-soft);
+      padding: 10px 8px;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    th {
+      color: var(--muted);
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    tr.selectable {
+      cursor: pointer;
+    }
+
+    tr.selectable:hover td,
+    tr.active-row td {
+      background: #f7f9ff;
+      box-shadow: inset 3px 0 0 var(--brand);
+    }
+
+    .empty-state {
+      display: none;
+      border: 1px dashed #cbd5e1;
+      border-radius: var(--radius);
+      padding: 18px;
+      background: #fbfcff;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .empty-state.show {
+      display: block;
+    }
+
+    .settings {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 760;
+    }
+
+    .field-error {
+      min-height: 18px;
+      color: var(--danger);
+      font-size: 12px;
+    }
+
+    .day-strip {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(100px, 1fr));
+      gap: 8px;
+    }
+
+    .day-button {
+      min-height: 62px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 8px;
+      background: var(--surface);
+      text-align: left;
+    }
+
+    .day-button.active {
+      border-color: var(--brand);
+      background: var(--brand-soft);
+    }
+
+    .day-button.done {
+      border-color: #b9dfce;
+      background: var(--success-soft);
+    }
+
+    .cycle-board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 10px;
+    }
+
+    .cycle-card {
+      min-height: 112px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      background: var(--surface);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .cycle-card strong {
+      display: block;
+      margin: 5px 0;
+      font-size: 16px;
+    }
+
+    .alert {
+      border: 1px solid #ffd7a6;
+      border-radius: var(--radius);
+      padding: 12px;
+      background: var(--warning-soft);
+      color: #70430b;
+    }
+
+    .alert.success {
+      border-color: #b9e5d4;
+      background: var(--success-soft);
+      color: #0f5b43;
+    }
+
+    .progress {
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: #e9eef6;
+    }
+
+    .progress > span {
+      display: block;
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--brand);
+      transition: width 180ms ease;
+    }
+
+    .bars {
+      display: grid;
+      gap: 9px;
+    }
+
+    .bar {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr) 58px;
+      gap: 10px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .bar-track {
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: #e9eef6;
+    }
+
+    .bar-fill {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--brand);
+    }
+
+    .bar-fill.success {
+      background: var(--success);
+    }
+
+    .bar-fill.warning {
+      background: #d97706;
+    }
+
+    .loading-line {
+      display: none;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .loading-line.show {
+      display: inline-flex;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #d8e0ec;
+      border-top-color: var(--brand);
+      border-radius: 999px;
+      animation: spin 800ms linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 30;
+      display: none;
+      max-width: 360px;
+      border: 1px solid var(--brand-line);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      background: var(--brand-soft);
+      color: #28348a;
+      box-shadow: var(--shadow);
+    }
+
+    .toast.show {
+      display: block;
+    }
+
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      z-index: 25;
+      width: min(440px, 100%);
+      height: 100vh;
+      border-left: 1px solid var(--line);
+      padding: 18px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      transform: translateX(105%);
+      transition: transform 180ms ease;
+      overflow-y: auto;
+    }
+
+    .drawer.open {
+      transform: translateX(0);
+    }
+
+    .drawer-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 35;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(15, 23, 42, 0.46);
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal {
+      width: min(460px, 100%);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 18px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    @media (max-width: 1180px) {
+      .stepper,
+      .grid-4,
+      .flow-diagram,
+      .cycle-board,
+      .day-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 840px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: relative;
+        height: auto;
+      }
+
+      .side-card {
+        position: static;
+        margin-top: 16px;
+      }
+
+      .main {
+        padding: 18px;
+      }
+
+      .topbar,
+      .task-row,
+      .filter-bar {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar,
+      .actions {
+        justify-content: flex-start;
+      }
+
+      .stepper,
+      .grid-3,
+      .grid-4,
+      .flow-diagram,
+      .settings,
+      .cycle-board,
+      .day-strip {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <strong>NextAIOps Algo</strong>
+        <span>Rolling Experiment Workbench</span>
+      </div>
+      <nav class="nav" id="nav" aria-label="Prototype navigation"></nav>
+      <div class="side-card">
+        <strong id="side-state">Policy draft</strong>
+        <span id="side-progress">0 / 6 rolling cycles completed</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="workspace">
+        <header class="topbar">
+          <div>
+            <div class="eyebrow">M2-024 Interactive Prototype</div>
+            <h1 id="page-title">实验总览</h1>
+            <div class="subtitle" id="page-subtitle"></div>
+          </div>
+          <div class="toolbar">
+            <button class="btn ghost" type="button" onclick="resetReplay()">重置回放</button>
+            <button class="btn" type="button" onclick="openHelpDrawer()">说明</button>
+            <button class="btn primary" type="button" onclick="goNext()">下一步</button>
+          </div>
+        </header>
+
+        <div class="stepper" id="stepper"></div>
+
+        <section class="page active" data-page="overview">
+          <div class="grid-4">
+            <div class="card">
+              <div class="metric-label">Dataset</div>
+              <div class="metric-value">7 天</div>
+              <div class="metric-sub">2026-05-01 至 2026-05-07</div>
+            </div>
+            <div class="card">
+              <div class="metric-label">Policy</div>
+              <div class="metric-value" id="overview-policy">Draft</div>
+              <div class="metric-sub" id="overview-policy-sub">等待冻结策略</div>
+            </div>
+            <div class="card">
+              <div class="metric-label">Rolling Cycles</div>
+              <div class="metric-value" id="overview-cycles">0 / 6</div>
+              <div class="progress"><span id="overview-progress"></span></div>
+            </div>
+            <div class="card">
+              <div class="metric-label">Candidate</div>
+              <div class="metric-value" id="overview-candidate">IQR</div>
+              <div class="metric-sub">当前 PA-F1 最高配置</div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="panel">
+              <h2>主任务路径</h2>
+              <div class="task-list">
+                <div class="task-row">
+                  <div>
+                    <strong>确认导入数据和日分区</strong>
+                    <span class="small">检查 schema、label coverage、quality gate 和异常分区。</span>
+                  </div>
+                  <button class="btn" type="button" onclick="showPage('data')">查看数据</button>
+                </div>
+                <div class="task-row">
+                  <div>
+                    <strong>冻结 auto-active 策略</strong>
+                    <span class="small">先冻结训练周期和 active 策略，再运行实验。</span>
+                  </div>
+                  <button class="btn" type="button" onclick="showPage('policy')">配置策略</button>
+                </div>
+                <div class="task-row">
+                  <div>
+                    <strong>运行滚动实验</strong>
+                    <span class="small">按 cutoff day 训练、验证、设置 active、推理下一时间段。</span>
+                  </div>
+                  <button class="btn primary" type="button" onclick="startExperiment()">开始实验</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h2>滚动计算语义</h2>
+              <div class="flow-diagram">
+                <div class="flow-node"><strong>1. Cutoff D</strong><br><span class="small">选择当前日期 D</span></div>
+                <div class="flow-node"><strong>2. Train M_D</strong><br><span class="small">使用 rows <= D</span></div>
+                <div class="flow-node"><strong>3. Active</strong><br><span class="small">M_D 覆盖 (D, next]</span></div>
+                <div class="flow-node"><strong>4. Infer</strong><br><span class="small">timestamp 命中 active_model_id</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" data-page="data">
+          <div class="grid-3">
+            <div class="card">
+              <div class="metric-label">dataset_version</div>
+              <div class="metric-value">ds-0501-0507</div>
+              <span class="badge success">imported</span>
+            </div>
+            <div class="card">
+              <div class="metric-label">Schema</div>
+              <div class="metric-value">5 cols</div>
+              <div class="metric-sub">timestamp / latency / cpu / memory / label</div>
+            </div>
+            <div class="card">
+              <div class="metric-label">Label Coverage</div>
+              <div class="metric-value">96%</div>
+              <span class="badge success">usable</span>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="panel">
+              <h2>Day Partitions</h2>
+              <div class="filter-bar">
+                <input class="input" id="partition-search" type="search" placeholder="搜索日期、状态或原因" oninput="renderPartitions()">
+                <select class="select" id="partition-status" onchange="renderPartitions()">
+                  <option value="all">全部状态</option>
+                  <option value="valid">valid</option>
+                  <option value="review">review</option>
+                </select>
+                <button class="btn" type="button" onclick="clearPartitionFilters()">清除筛选</button>
+              </div>
+              <table>
+                <thead>
+                  <tr><th>Day</th><th>Rows</th><th>Label</th><th>Quality</th><th>Status</th></tr>
+                </thead>
+                <tbody id="partition-table"></tbody>
+              </table>
+              <div class="empty-state" id="partition-empty">没有匹配的分区。清除筛选后可查看全部日期。</div>
+            </div>
+
+            <div class="panel">
+              <h2>异常与使用规则</h2>
+              <table>
+                <tbody>
+                  <tr><th>可用分区</th><td id="valid-partitions">6 / 7</td></tr>
+                  <tr><th>低覆盖处理</th><td>D6 保留异常说明，不参与自动 active 策略统计。</td></tr>
+                  <tr><th>active 覆盖</th><td>每条预测必须按 timestamp 命中唯一 active interval。</td></tr>
+                  <tr><th>下一步</th><td>确认有效分区后冻结策略。</td></tr>
+                </tbody>
+              </table>
+              <div class="actions" style="margin-top: 12px;">
+                <button class="btn primary" type="button" onclick="showPage('policy')">使用有效分区</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" data-page="policy">
+          <div class="grid-2">
+            <div class="panel">
+              <h2>Experiment Policy</h2>
+              <div class="settings">
+                <div class="field">
+                  <label for="cadence">Training cadence</label>
+                  <select class="select" id="cadence">
+                    <option value="1">1 day</option>
+                    <option value="2">2 days</option>
+                  </select>
+                  <div class="field-error" id="cadence-error"></div>
+                </div>
+                <div class="field">
+                  <label for="active-policy">Auto-active policy</label>
+                  <select class="select" id="active-policy">
+                    <option value="latest">latest trained model</option>
+                    <option value="gate">latest model with quality gates</option>
+                  </select>
+                  <div class="field-error"></div>
+                </div>
+                <div class="field">
+                  <label for="min-coverage">Min label coverage</label>
+                  <input class="input" id="min-coverage" type="number" min="0" max="100" value="90">
+                  <div class="field-error" id="coverage-error"></div>
+                </div>
+                <div class="field">
+                  <label for="quality-gate">Quality gate</label>
+                  <input class="input" id="quality-gate" type="number" min="0" max="100" value="90">
+                  <div class="field-error" id="quality-error"></div>
+                </div>
+              </div>
+              <div class="actions" style="margin-top: 14px;">
+                <button class="btn" type="button" onclick="requestEditPolicy()">修改策略</button>
+                <button class="btn primary" type="button" id="freeze-button" onclick="freezePolicy()">冻结并进入实验</button>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h2>冻结上下文</h2>
+              <table>
+                <tbody>
+                  <tr><th>dataset_version</th><td>ds-0501-0507</td></tr>
+                  <tr><th>algorithm matrix</th><td>IQR、Three Sigma、Seasonal Median</td></tr>
+                  <tr><th>cadence</th><td id="policy-cadence">1 day</td></tr>
+                  <tr><th>auto-active</th><td id="policy-mode">latest trained model</td></tr>
+                  <tr><th>state</th><td id="policy-state-cell"><span class="badge warning">draft</span></td></tr>
+                </tbody>
+              </table>
+              <div class="alert" style="margin-top: 12px;">
+                本阶段只模拟实验 active timeline，不修改生产 active pointer。
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" data-page="experiment">
+          <div class="panel">
+            <div class="topbar" style="margin-bottom: 12px;">
+              <div>
+                <h2>Rolling Train / Validate / Active / Infer</h2>
+                <div class="small" id="experiment-caption"></div>
+              </div>
+              <div class="actions">
+                <select class="select" id="algorithm-select" onchange="selectAlgorithm(this.value)"></select>
+                <button class="btn" type="button" id="run-next-button" onclick="runNextCycle()">运行下一天</button>
+                <button class="btn primary" type="button" id="run-all-button" onclick="runAllCycles()">运行全部</button>
+              </div>
+            </div>
+            <div class="day-strip" id="day-strip"></div>
+            <div class="loading-line" id="run-loading" style="margin-top: 12px;">
+              <span class="spinner"></span>
+              <span>正在运行训练、验证与推理...</span>
+            </div>
+          </div>
+
+          <div class="cycle-board">
+            <div class="cycle-card">
+              <span class="badge brand">cutoff</span>
+              <strong id="cycle-cutoff">D1</strong>
+              <div class="small" id="cycle-train">train rows <= D1</div>
+            </div>
+            <div class="cycle-card">
+              <span class="badge success">train / validate</span>
+              <strong id="cycle-model">M_0501</strong>
+              <div class="small" id="cycle-metric">validation PA-F1 0.81</div>
+            </div>
+            <div class="cycle-card">
+              <span class="badge brand">active</span>
+              <strong id="cycle-active">M_0501</strong>
+              <div class="small" id="cycle-range">(D1, D2]</div>
+            </div>
+            <div class="cycle-card">
+              <span class="badge success">infer</span>
+              <strong id="cycle-infer">D2</strong>
+              <div class="small">按 timestamp 命中 active 模型</div>
+            </div>
+          </div>
+
+          <div class="alert" id="cycle-issue">当前循环无阻断项。</div>
+
+          <div class="grid-2">
+            <div class="panel">
+              <h2>Algorithm Matrix</h2>
+              <table>
+                <thead>
+                  <tr><th>Algorithm</th><th>Params</th><th>Seed</th><th>PA-F1</th><th></th></tr>
+                </thead>
+                <tbody id="algorithm-table"></tbody>
+              </table>
+            </div>
+            <div class="panel">
+              <h2>Prediction Ledger Preview</h2>
+              <table>
+                <thead>
+                  <tr><th>timestamp</th><th>active_model_id</th><th>score</th><th>pred</th><th>label</th></tr>
+                </thead>
+                <tbody id="ledger-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" data-page="results">
+          <div class="grid-4">
+            <div class="card">
+              <div class="metric-label">PA-F1</div>
+              <div class="metric-value" id="result-pa">0.86</div>
+              <span class="badge success">period-aware</span>
+            </div>
+            <div class="card">
+              <div class="metric-label">F1</div>
+              <div class="metric-value" id="result-f1">0.82</div>
+              <span class="badge success">global</span>
+            </div>
+            <div class="card">
+              <div class="metric-label">Auto Active</div>
+              <div class="metric-value" id="result-active-count">0</div>
+              <div class="metric-sub">completed intervals</div>
+            </div>
+            <div class="card">
+              <div class="metric-label">Blocked</div>
+              <div class="metric-value">1</div>
+              <span class="badge warning">low coverage</span>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="panel">
+              <h2>Algorithm Ranking</h2>
+              <table>
+                <thead>
+                  <tr><th>Rank</th><th>Algorithm</th><th>Params</th><th>PA-F1</th><th>F1</th><th></th></tr>
+                </thead>
+                <tbody id="ranking-table"></tbody>
+              </table>
+            </div>
+            <div class="panel">
+              <h2>Daily Metric Trend</h2>
+              <div class="bars" id="daily-bars"></div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="panel">
+              <h2>Active Switch Timeline</h2>
+              <table>
+                <thead>
+                  <tr><th>cutoff</th><th>active_model_id</th><th>range</th><th>infer day</th><th>state</th></tr>
+                </thead>
+                <tbody id="result-timeline"></tbody>
+              </table>
+            </div>
+            <div class="panel">
+              <h2>Excluded / Blocked Items</h2>
+              <table>
+                <thead>
+                  <tr><th>对象</th><th>状态</th><th>原因</th><th>指标处理</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>D6 partition</td><td><span class="badge warning">low_label_coverage</span></td><td>label coverage 82%</td><td>不参与自动 active 统计</td></tr>
+                  <tr><td>Seasonal Median / D5</td><td><span class="badge warning">partial_failed</span></td><td>窗口样本不足</td><td>保留其他日期结果</td></tr>
+                  <tr><td>initial interval</td><td><span class="badge success">covered</span></td><td>initial_model 覆盖 D1</td><td>参与报告</td></tr>
+                </tbody>
+              </table>
+              <div class="actions" style="margin-top: 12px;">
+                <button class="btn primary" type="button" onclick="chooseCandidate()">确认候选配置</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <aside class="drawer" id="drawer" aria-label="Detail drawer">
+    <div class="drawer-head">
+      <div>
+        <h2 id="drawer-title">详情</h2>
+        <div class="small" id="drawer-subtitle"></div>
+      </div>
+      <button class="btn" type="button" onclick="closeDrawer()">关闭</button>
+    </div>
+    <div id="drawer-body"></div>
+  </aside>
+
+  <div class="modal-backdrop" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal">
+      <h2 id="modal-title">重新编辑策略？</h2>
+      <p class="muted">编辑已冻结策略会清空当前滚动实验结果，并回到 draft 状态。</p>
+      <div class="actions">
+        <button class="btn" type="button" onclick="closeModal()">取消</button>
+        <button class="btn danger" type="button" onclick="confirmEditPolicy()">确认重置</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const pages = [
+      { key: "overview", label: "总览", meta: "目标与任务", title: "实验总览", subtitle: "基于一次导入的多天数据，完成滚动算法实验、auto-active 策略模拟与算法效果对比。" },
+      { key: "data", label: "数据", meta: "导入与分区", title: "导入数据与日分区", subtitle: "确认 dataset_version、schema、质量分和可参与实验的 day partitions。" },
+      { key: "policy", label: "策略", meta: "冻结上下文", title: "实验策略", subtitle: "先配置并冻结训练周期与 auto-active 策略，再启动滚动实验。" },
+      { key: "experiment", label: "滚动实验", meta: "Train / Active / Infer", title: "滚动算法实验", subtitle: "按 cutoff day 训练验证模型，设置下一时间段 active，并生成推理 ledger。" },
+      { key: "results", label: "结果", meta: "指标与排行", title: "算法效果对比", subtitle: "汇总多日推理指标，比较算法配置，并解释被排除的日期或算法组合。" }
+    ];
+
+    const steps = [
+      { key: "data", label: "确认数据", hint: "schema + day partitions" },
+      { key: "policy", label: "冻结策略", hint: "cadence + auto-active" },
+      { key: "experiment", label: "滚动实验", hint: "train -> active -> infer" },
+      { key: "results", label: "比较效果", hint: "metrics + ranking" }
+    ];
+
+    const days = [
+      { id: "D1", date: "2026-05-01", rows: 1440, coverage: 98, quality: 97, reason: "" },
+      { id: "D2", date: "2026-05-02", rows: 1440, coverage: 97, quality: 96, reason: "" },
+      { id: "D3", date: "2026-05-03", rows: 1440, coverage: 95, quality: 94, reason: "" },
+      { id: "D4", date: "2026-05-04", rows: 1440, coverage: 96, quality: 95, reason: "" },
+      { id: "D5", date: "2026-05-05", rows: 1440, coverage: 94, quality: 92, reason: "" },
+      { id: "D6", date: "2026-05-06", rows: 1440, coverage: 82, quality: 89, reason: "label coverage below policy gate" },
+      { id: "D7", date: "2026-05-07", rows: 1440, coverage: 96, quality: 95, reason: "" }
+    ];
+
+    const algorithms = [
+      { key: "iqr", name: "IQR Detector", params: "window=96, k=1.5", seed: 42, pa: 0.86, f1: 0.82, fp: 11, fn: 7, daily: [0.81, 0.84, 0.86, 0.85, 0.83, 0.78] },
+      { key: "sigma", name: "Three Sigma", params: "sigma=3, rolling=72", seed: 42, pa: 0.79, f1: 0.75, fp: 16, fn: 12, daily: [0.75, 0.78, 0.79, 0.80, 0.77, 0.72] },
+      { key: "seasonal", name: "Seasonal Median", params: "season=1d, band=mad", seed: 42, pa: 0.82, f1: 0.77, fp: 13, fn: 11, daily: [0.77, 0.80, 0.82, 0.81, 0.69, 0.76] }
+    ];
+
+    const state = {
+      page: "overview",
+      policyFrozen: false,
+      cadence: "1",
+      activePolicy: "latest",
+      minCoverage: 90,
+      qualityGate: 90,
+      algorithm: "iqr",
+      currentCycle: 0,
+      completedCycles: 0,
+      running: false
+    };
+
+    const cycleCount = days.length - 1;
+    let toastTimer = 0;
+
+    function $(selector) {
+      return document.querySelector(selector);
+    }
+
+    function $all(selector) {
+      return Array.from(document.querySelectorAll(selector));
+    }
+
+    function badge(kind, label) {
+      return `<span class="badge ${kind}">${label}</span>`;
+    }
+
+    function activeAlgorithm() {
+      return algorithms.find((item) => item.key === state.algorithm) || algorithms[0];
+    }
+
+    function modelId(index) {
+      return `M_${days[index].date.slice(5).replace("-", "")}`;
+    }
+
+    function cycleAt(index) {
+      return {
+        cutoff: days[index],
+        infer: days[index + 1],
+        model: modelId(index),
+        range: `(${days[index].id}, ${days[index + 1].id}]`
+      };
+    }
+
+    function showToast(message) {
+      const toast = $("#toast");
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => toast.classList.remove("show"), 2600);
+    }
+
+    function showPage(key) {
+      state.page = key;
+      const page = pages.find((item) => item.key === key) || pages[0];
+      $("#page-title").textContent = page.title;
+      $("#page-subtitle").textContent = page.subtitle;
+      $all(".page").forEach((node) => node.classList.toggle("active", node.dataset.page === key));
+      $all(".nav button").forEach((node) => node.classList.toggle("active", node.dataset.page === key));
+      renderStepper();
+    }
+
+    function goNext() {
+      if (state.page === "overview") showPage("data");
+      else if (state.page === "data") showPage("policy");
+      else if (state.page === "policy") state.policyFrozen ? showPage("experiment") : freezePolicy();
+      else if (state.page === "experiment") runNextCycle();
+      else showPage("overview");
+    }
+
+    function renderNav() {
+      $("#nav").innerHTML = pages.map((page, index) => `
+        <button type="button" data-page="${page.key}" onclick="showPage('${page.key}')">
+          <span class="nav-index">${index + 1}</span>
+          <span>
+            <strong>${page.label}</strong>
+            <span class="nav-meta">${page.meta}</span>
+          </span>
+        </button>
+      `).join("");
+    }
+
+    function renderStepper() {
+      $("#stepper").innerHTML = steps.map((step, index) => {
+        const done = step.key === "data" || (step.key === "policy" && state.policyFrozen) || (step.key === "experiment" && state.completedCycles > 0) || (step.key === "results" && state.completedCycles === cycleCount);
+        const active = state.page === step.key;
+        const status = done ? "done" : active ? "active" : "";
+        const suffix = done ? "done" : active ? "active" : "pending";
+        return `
+          <button class="step ${status}" type="button" onclick="showPage('${step.key}')">
+            <span class="step-title"><span>${index + 1}. ${step.label}</span><span>${suffix}</span></span>
+            <span class="small">${step.hint}</span>
+          </button>
+        `;
+      }).join("");
+    }
+
+    function renderOverview() {
+      const pct = Math.round((state.completedCycles / cycleCount) * 100);
+      const best = algorithms.slice().sort((a, b) => b.pa - a.pa)[0];
+      $("#overview-policy").textContent = state.policyFrozen ? "Frozen" : "Draft";
+      $("#overview-policy-sub").textContent = state.policyFrozen ? `${state.cadence} day / ${state.activePolicy}` : "等待冻结策略";
+      $("#overview-cycles").textContent = `${state.completedCycles} / ${cycleCount}`;
+      $("#overview-progress").style.width = `${pct}%`;
+      $("#overview-candidate").textContent = best.name.replace(" Detector", "");
+      $("#side-state").textContent = state.policyFrozen ? "Policy frozen" : "Policy draft";
+      $("#side-progress").textContent = `${state.completedCycles} / ${cycleCount} rolling cycles completed`;
+    }
+
+    function partitionState(day) {
+      if (day.coverage < state.minCoverage || day.quality < state.qualityGate) return "review";
+      return "valid";
+    }
+
+    function renderPartitions() {
+      const query = ($("#partition-search")?.value || "").trim().toLowerCase();
+      const status = $("#partition-status")?.value || "all";
+      const validCount = days.filter((day) => partitionState(day) === "valid").length;
+      $("#valid-partitions").textContent = `${validCount} / ${days.length}`;
+      const rows = days.filter((day) => {
+        const stateText = partitionState(day);
+        const haystack = `${day.id} ${day.date} ${stateText} ${day.reason}`.toLowerCase();
+        return (status === "all" || status === stateText) && (!query || haystack.includes(query));
+      });
+      $("#partition-empty").classList.toggle("show", rows.length === 0);
+      $("#partition-table").innerHTML = rows.map((day) => {
+        const stateText = partitionState(day);
+        const stateBadge = stateText === "valid" ? badge("success", "valid") : badge("warning", "review");
+        return `
+          <tr class="selectable" onclick="openPartitionDrawer('${day.id}')">
+            <td>${day.id}<br><span class="small">${day.date}</span></td>
+            <td>${day.rows}</td>
+            <td>${day.coverage}%</td>
+            <td>${day.quality}/100</td>
+            <td>${stateBadge}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function clearPartitionFilters() {
+      $("#partition-search").value = "";
+      $("#partition-status").value = "all";
+      renderPartitions();
+    }
+
+    function validatePolicy() {
+      const coverage = Number($("#min-coverage").value);
+      const quality = Number($("#quality-gate").value);
+      let ok = true;
+      $("#coverage-error").textContent = "";
+      $("#quality-error").textContent = "";
+      if (Number.isNaN(coverage) || coverage < 0 || coverage > 100) {
+        $("#coverage-error").textContent = "请输入 0 到 100 之间的覆盖率。";
+        ok = false;
+      }
+      if (Number.isNaN(quality) || quality < 0 || quality > 100) {
+        $("#quality-error").textContent = "请输入 0 到 100 之间的质量门槛。";
+        ok = false;
+      }
+      return ok;
+    }
+
+    function freezePolicy() {
+      if (!validatePolicy()) return;
+      state.cadence = $("#cadence").value;
+      state.activePolicy = $("#active-policy").value;
+      state.minCoverage = Number($("#min-coverage").value);
+      state.qualityGate = Number($("#quality-gate").value);
+      state.policyFrozen = true;
+      state.completedCycles = 0;
+      state.currentCycle = 0;
+      render();
+      showPage("experiment");
+      showToast("策略已冻结，实验上下文已生成。");
+    }
+
+    function requestEditPolicy() {
+      if (!state.policyFrozen) {
+        showToast("策略仍处于 draft，可直接编辑。");
+        return;
+      }
+      $("#confirm-modal").classList.add("open");
+    }
+
+    function closeModal() {
+      $("#confirm-modal").classList.remove("open");
+    }
+
+    function confirmEditPolicy() {
+      state.policyFrozen = false;
+      state.completedCycles = 0;
+      state.currentCycle = 0;
+      closeModal();
+      render();
+      showToast("策略已解冻，滚动结果已重置。");
+    }
+
+    function renderPolicy() {
+      $("#cadence").value = state.cadence;
+      $("#active-policy").value = state.activePolicy;
+      $("#min-coverage").value = state.minCoverage;
+      $("#quality-gate").value = state.qualityGate;
+      $("#policy-cadence").textContent = `${state.cadence} day`;
+      $("#policy-mode").textContent = state.activePolicy === "latest" ? "latest trained model" : "latest model with quality gates";
+      $("#policy-state-cell").innerHTML = state.policyFrozen ? badge("success", "frozen") : badge("warning", "draft");
+      ["#cadence", "#active-policy", "#min-coverage", "#quality-gate"].forEach((selector) => {
+        $(selector).disabled = state.policyFrozen;
+      });
+      $("#freeze-button").disabled = state.policyFrozen;
+    }
+
+    function startExperiment() {
+      if (!state.policyFrozen) {
+        showPage("policy");
+        showToast("请先冻结 auto-active 策略。");
+        return;
+      }
+      showPage("experiment");
+    }
+
+    function setRunning(value) {
+      state.running = value;
+      $("#run-loading").classList.toggle("show", value);
+      $("#run-next-button").disabled = value;
+      $("#run-all-button").disabled = value;
+      $("#algorithm-select").disabled = value;
+    }
+
+    function completeOneCycle() {
+      state.completedCycles = Math.max(state.completedCycles, state.currentCycle + 1);
+      if (state.currentCycle < cycleCount - 1) {
+        state.currentCycle += 1;
+      } else {
+        showPage("results");
+      }
+      render();
+    }
+
+    function runNextCycle() {
+      if (!state.policyFrozen) {
+        showPage("policy");
+        showToast("策略仍是 draft，无法启动实验。");
+        return;
+      }
+      setRunning(true);
+      window.setTimeout(() => {
+        setRunning(false);
+        completeOneCycle();
+        showToast("当前日循环已完成。");
+      }, 450);
+    }
+
+    function runAllCycles() {
+      if (!state.policyFrozen) {
+        showPage("policy");
+        showToast("策略仍是 draft，无法运行全部循环。");
+        return;
+      }
+      setRunning(true);
+      window.setTimeout(() => {
+        setRunning(false);
+        state.completedCycles = cycleCount;
+        state.currentCycle = cycleCount - 1;
+        render();
+        showPage("results");
+        showToast("全部滚动循环已完成，排行已刷新。");
+      }, 650);
+    }
+
+    function selectCycle(index) {
+      state.currentCycle = Math.max(0, Math.min(cycleCount - 1, index));
+      render();
+      showPage("experiment");
+    }
+
+    function selectAlgorithm(key) {
+      state.algorithm = key;
+      render();
+    }
+
+    function renderExperiment() {
+      const algorithm = activeAlgorithm();
+      const cycle = cycleAt(state.currentCycle);
+      const metric = algorithm.daily[state.currentCycle];
+      $("#algorithm-select").innerHTML = algorithms.map((item) => `<option value="${item.key}">${item.name} / ${item.params}</option>`).join("");
+      $("#algorithm-select").value = state.algorithm;
+      $("#experiment-caption").textContent = `${algorithm.name}：用 <= ${cycle.cutoff.id} 的数据训练 ${cycle.model}，并对 ${cycle.infer.id} 推理。`;
+      $("#cycle-cutoff").textContent = `${cycle.cutoff.id} / ${cycle.cutoff.date}`;
+      $("#cycle-train").textContent = `train + validation rows <= ${cycle.cutoff.id}`;
+      $("#cycle-model").textContent = cycle.model;
+      $("#cycle-metric").textContent = `validation PA-F1 ${metric.toFixed(2)}`;
+      $("#cycle-active").textContent = cycle.model;
+      $("#cycle-range").textContent = cycle.range;
+      $("#cycle-infer").textContent = `${cycle.infer.id} / ${cycle.infer.date}`;
+      const blocked = partitionState(cycle.infer) !== "valid";
+      const partial = algorithm.key === "seasonal" && state.currentCycle === 4;
+      $("#cycle-issue").classList.toggle("success", !blocked && !partial);
+      if (partial) {
+        $("#cycle-issue").innerHTML = `<strong>partial_failed：</strong>${algorithm.name} 在 ${cycle.cutoff.id} 窗口样本不足，其他算法继续参与排行。`;
+      } else if (blocked) {
+        $("#cycle-issue").innerHTML = `<strong>review：</strong>${cycle.infer.id} label coverage ${cycle.infer.coverage}% / quality ${cycle.infer.quality}，不参与自动 active 统计。`;
+      } else {
+        $("#cycle-issue").textContent = "当前循环无阻断项。";
+      }
+      $("#day-strip").innerHTML = Array.from({ length: cycleCount }, (_, index) => {
+        const item = cycleAt(index);
+        const done = index < state.completedCycles;
+        const active = index === state.currentCycle;
+        return `
+          <button class="day-button ${done ? "done" : ""} ${active ? "active" : ""}" type="button" onclick="selectCycle(${index})">
+            <strong>${item.cutoff.id} -> ${item.infer.id}</strong><br>
+            <span class="small">${item.model} active ${item.range}</span>
+          </button>
+        `;
+      }).join("");
+      $("#algorithm-table").innerHTML = algorithms.map((item) => `
+        <tr class="selectable ${item.key === state.algorithm ? "active-row" : ""}" onclick="selectAlgorithm('${item.key}')">
+          <td>${item.name}</td>
+          <td>${item.params}</td>
+          <td>${item.seed}</td>
+          <td>${item.pa.toFixed(2)}</td>
+          <td><button class="btn" type="button" onclick="event.stopPropagation(); openAlgorithmDrawer('${item.key}')">详情</button></td>
+        </tr>
+      `).join("");
+      $("#ledger-table").innerHTML = [0, 1, 2, 3, 4].map((offset) => {
+        const hour = String(offset * 4).padStart(2, "0");
+        const score = Math.min(0.98, 0.56 + offset * 0.08 + state.currentCycle * 0.015 + algorithm.pa * 0.08);
+        const pred = score >= 0.74 ? 1 : 0;
+        const label = offset === 2 || offset === 4 ? 1 : pred;
+        const timestamp = `${cycle.infer.date} ${hour}:00`;
+        return `<tr class="selectable" onclick="openLedgerDrawer('${timestamp}', '${cycle.model}', '${score.toFixed(2)}', '${pred}', '${label}')"><td>${timestamp}</td><td>${cycle.model}</td><td>${score.toFixed(2)}</td><td>${pred}</td><td>${label}</td></tr>`;
+      }).join("");
+    }
+
+    function renderResults() {
+      const algorithm = activeAlgorithm();
+      const ranking = algorithms.slice().sort((a, b) => b.pa - a.pa);
+      $("#result-pa").textContent = algorithm.pa.toFixed(2);
+      $("#result-f1").textContent = algorithm.f1.toFixed(2);
+      $("#result-active-count").textContent = String(state.completedCycles);
+      $("#ranking-table").innerHTML = ranking.map((item, index) => `
+        <tr class="selectable ${item.key === state.algorithm ? "active-row" : ""}" onclick="selectAlgorithm('${item.key}')">
+          <td>${index + 1}</td>
+          <td>${item.name}</td>
+          <td>${item.params}</td>
+          <td>${item.pa.toFixed(2)}</td>
+          <td>${item.f1.toFixed(2)}</td>
+          <td><button class="btn" type="button" onclick="event.stopPropagation(); chooseCandidate('${item.key}')">候选</button></td>
+        </tr>
+      `).join("");
+      $("#daily-bars").innerHTML = algorithm.daily.map((value, index) => {
+        const cycle = cycleAt(index);
+        const width = Math.round(value * 100);
+        const kind = value >= 0.8 ? "success" : "warning";
+        return `
+          <div class="bar">
+            <span>${cycle.cutoff.id} -> ${cycle.infer.id}</span>
+            <span class="bar-track"><span class="bar-fill ${kind}" style="width: ${width}%"></span></span>
+            <strong>${value.toFixed(2)}</strong>
+          </div>
+        `;
+      }).join("");
+      $("#result-timeline").innerHTML = Array.from({ length: cycleCount }, (_, index) => {
+        const cycle = cycleAt(index);
+        const completed = index < state.completedCycles;
+        const review = partitionState(cycle.infer) !== "valid";
+        const stateBadge = review ? badge("warning", "review") : completed ? badge("success", "active_assigned") : badge("neutral", "pending");
+        return `<tr><td>${cycle.cutoff.id}</td><td>${cycle.model}</td><td>${cycle.range}</td><td>${cycle.infer.id}</td><td>${stateBadge}</td></tr>`;
+      }).join("");
+    }
+
+    function openDrawer(title, subtitle, body) {
+      $("#drawer-title").textContent = title;
+      $("#drawer-subtitle").textContent = subtitle;
+      $("#drawer-body").innerHTML = body;
+      $("#drawer").classList.add("open");
+    }
+
+    function closeDrawer() {
+      $("#drawer").classList.remove("open");
+    }
+
+    function openHelpDrawer() {
+      openDrawer("原型说明", "M2-024 MVP 范围", `
+        <p>该原型聚焦导入多天数据后的离线滚动算法实验，不包含生产模型注册、回滚或在线 serving。</p>
+        <table>
+          <tbody>
+            <tr><th>主路径</th><td>Data -> Policy -> Rolling Experiment -> Results</td></tr>
+            <tr><th>默认策略</th><td>1 天训练一次，最新训练模型成为下一时间段 active</td></tr>
+            <tr><th>推理规则</th><td>timestamp 命中 active interval 后使用对应 active_model_id</td></tr>
+          </tbody>
+        </table>
+      `);
+    }
+
+    function openPartitionDrawer(dayId) {
+      const day = days.find((item) => item.id === dayId);
+      const stateText = partitionState(day);
+      openDrawer(`${day.id} 分区详情`, day.date, `
+        <table>
+          <tbody>
+            <tr><th>rows</th><td>${day.rows}</td></tr>
+            <tr><th>label coverage</th><td>${day.coverage}%</td></tr>
+            <tr><th>quality</th><td>${day.quality}/100</td></tr>
+            <tr><th>status</th><td>${stateText === "valid" ? badge("success", "valid") : badge("warning", "review")}</td></tr>
+            <tr><th>usage</th><td>${stateText === "valid" ? "参与滚动实验与指标统计" : "保留异常说明，不参与自动 active 统计"}</td></tr>
+          </tbody>
+        </table>
+      `);
+    }
+
+    function openAlgorithmDrawer(key) {
+      const item = algorithms.find((algorithm) => algorithm.key === key);
+      openDrawer(item.name, item.params, `
+        <table>
+          <tbody>
+            <tr><th>seed</th><td>${item.seed}</td></tr>
+            <tr><th>PA-F1</th><td>${item.pa.toFixed(2)}</td></tr>
+            <tr><th>F1</th><td>${item.f1.toFixed(2)}</td></tr>
+            <tr><th>FP / FN</th><td>${item.fp} / ${item.fn}</td></tr>
+          </tbody>
+        </table>
+      `);
+    }
+
+    function openLedgerDrawer(timestamp, model, score, pred, label) {
+      openDrawer("Prediction ledger", timestamp, `
+        <table>
+          <tbody>
+            <tr><th>active_model_id</th><td>${model}</td></tr>
+            <tr><th>score</th><td>${score}</td></tr>
+            <tr><th>predicted_label</th><td>${pred}</td></tr>
+            <tr><th>label</th><td>${label}</td></tr>
+          </tbody>
+        </table>
+      `);
+    }
+
+    function chooseCandidate(key = state.algorithm) {
+      state.algorithm = key;
+      render();
+      showToast(`${activeAlgorithm().name} 已标记为后续主流程候选配置。`);
+    }
+
+    function resetReplay() {
+      state.completedCycles = 0;
+      state.currentCycle = 0;
+      render();
+      showPage("overview");
+      showToast("滚动回放已重置，策略状态保持不变。");
+    }
+
+    function render() {
+      renderStepper();
+      renderOverview();
+      renderPartitions();
+      renderPolicy();
+      renderExperiment();
+      renderResults();
+      showPage(state.page);
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeDrawer();
+        closeModal();
+      }
+    });
+
+    renderNav();
+    render();
+  </script>
+</body>
+</html>

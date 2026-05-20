@@ -1,0 +1,11 @@
+interface:
+  display_name: "Product HTML Prototype"
+  short_description: "Create clickable single-file HTML product prototypes from PRDs and design docs."
+  brand_color: "#4F46E5"
+  default_prompt: "Create an interactive single-file HTML product prototype from the provided product or design document."
+
+policy:
+  allow_implicit_invocation: true
+
+dependencies:
+  tools: []

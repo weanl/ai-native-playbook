@@ -1,0 +1,87 @@
+<mxfile host="app.diagrams.net" modified="2026-05-20T00:00:00.000Z" agent="Codex" version="24.7.17">
+  <diagram id="mvp-rolling-algorithm-experiment" name="MVP滚动算法实验">
+    <mxGraphModel dx="1500" dy="1720" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="1720" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="M2 MVP：导入多天数据后的滚动算法实验与 auto-active 策略模拟&#xa;截止到 Day D 的数据训练/验证模型 M_D；下一次训练更新前，后续时间段推理都使用 M_D 这个 active 模型" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1;fontColor=#172033;" vertex="1" parent="1">
+          <mxGeometry x="50" y="24" width="1220" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="legend-1" value="主流程只使用竖向相邻箭头，右侧说明卡不连线，避免线框重叠" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8ea;strokeColor=#ffd99b;fontColor=#694000;fontSize=12;align=left;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="50" y="100" width="1220" height="38" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="n1" value="1. Import Multi-Day Dataset&#xa;一次导入多天指标数据&#xa;timestamp / metric / label" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c9d8f6;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="165" width="390" height="76" as="geometry"/>
+        </mxCell>
+        <mxCell id="n2" value="2. Schema &amp; Quality Check&#xa;角色推断、质量分、label coverage&#xa;不合格数据只保留异常说明" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c9d8f6;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="270" width="390" height="76" as="geometry"/>
+        </mxCell>
+        <mxCell id="n3" value="3. Build Day Partitions&#xa;D1 ... DN&#xa;每行必须保留 timestamp" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="375" width="390" height="76" as="geometry"/>
+        </mxCell>
+        <mxCell id="n4" value="4. Algorithm / Parameter Matrix&#xa;算法 × 参数 × 日分区&#xa;每个组合都会走同一套滚动实验" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="480" width="390" height="76" as="geometry"/>
+        </mxCell>
+        <mxCell id="n5" value="5. Configure Experiment Policy&#xa;默认训练周期：1 天&#xa;默认 auto-active：最新训练模型自动 active" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f2ff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="585" width="390" height="76" as="geometry"/>
+        </mxCell>
+        <mxCell id="n6" value="6. Freeze Experiment Context&#xa;dataset_version / algorithm / params / cadence / policy&#xa;运行中不随结果变更" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f2ff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="690" width="390" height="76" as="geometry"/>
+        </mxCell>
+        <mxCell id="n7" value="7. Select Cutoff Day D&#xa;对导入数据中的每一天循环&#xa;D = D1 ... DN" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c9d8f6;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="795" width="390" height="76" as="geometry"/>
+        </mxCell>
+        <mxCell id="n8" value="8. Build Train / Validation Set&#xa;使用截止到 Day D 的数据&#xa;训练集 + 验证集" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="900" width="390" height="76" as="geometry"/>
+        </mxCell>
+        <mxCell id="n9" value="9. Train / Validate Model M_D&#xa;训练当日模型，计算验证指标&#xa;保存 model_id、params、seed、metrics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1005" width="390" height="76" as="geometry"/>
+        </mxCell>
+        <mxCell id="n10" value="10. Set Active for Next Interval&#xa;默认 M_D 自动成为 active&#xa;effective_from = D 之后；effective_to = 下一次训练前" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f2ff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1110" width="390" height="82" as="geometry"/>
+        </mxCell>
+        <mxCell id="n11" value="11. Infer Next Interval&#xa;对 D 之后到下一次训练前的数据推理&#xa;必须使用该时间段 active model" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f6f1;strokeColor=#6abf9f;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1225" width="390" height="82" as="geometry"/>
+        </mxCell>
+        <mxCell id="n12" value="12. Store Prediction Ledger&#xa;timestamp / algorithm / params / active_model_id&#xa;predicted_label / score / label" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d8e0ea;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1340" width="390" height="82" as="geometry"/>
+        </mxCell>
+        <mxCell id="n13" value="13. Aggregate Metrics &amp; Rank&#xa;按天、算法、参数汇总&#xa;F1 / PA-F1 / FP / FN / active switch timeline" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f6f1;strokeColor=#6abf9f;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1455" width="390" height="82" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="note-policy" value="策略配置&#xa;&#xa;MVP 默认：&#xa;- 训练周期 = 1 天&#xa;- 最新训练模型自动 active&#xa;- 真实生产 active pointer 不改变&#xa;&#xa;后续可配置：&#xa;- 训练周期&#xa;- min metric delta&#xa;- max regression&#xa;- label coverage / quality gate&#xa;- needs_review / blocked 策略" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f2ff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=top;spacing=14;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="560" y="165" width="390" height="300" as="geometry"/>
+        </mxCell>
+        <mxCell id="note-loop" value="多日循环语义&#xa;&#xa;导入数据包含 D1...DN 多天。&#xa;对每个算法/参数组合：&#xa;1. 取 cutoff day D。&#xa;2. 用 ≤D 的数据训练/验证 M_D。&#xa;3. M_D 默认成为 D 后续区间 active。&#xa;4. 用 M_D 推理直到下一次训练。&#xa;5. D 前进一天，重复。&#xa;&#xa;因此一次导入会产生多次训练与推理循环。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8ea;strokeColor=#ffd99b;fontColor=#694000;align=left;verticalAlign=top;spacing=14;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="560" y="515" width="390" height="320" as="geometry"/>
+        </mxCell>
+        <mxCell id="note-active" value="Active Timeline 示例&#xa;&#xa;initial_model: (-∞, D1]&#xa;M_D1: (D1, D2]&#xa;M_D2: (D2, D3]&#xa;M_D3: (D3, D4]&#xa;...&#xa;&#xa;推理规则：&#xa;prediction.timestamp ∈ active.effective_range&#xa;⇒ 使用该 active_model_id 计算 predicted_label / score" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f6f1;strokeColor=#6abf9f;fontColor=#172033;align=left;verticalAlign=top;spacing=14;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="515" width="410" height="320" as="geometry"/>
+        </mxCell>
+        <mxCell id="note-output" value="MVP 输出&#xa;&#xa;1. 每个算法/参数的多日推理结果。&#xa;2. 每天 active_model_id 与预测结果。&#xa;3. 每天与整体效果指标。&#xa;4. auto-active 策略模拟摘要。&#xa;5. 候选算法配置排行榜。&#xa;&#xa;暂不输出：模型注册、manual promotion、生产 active pointer 修改、online serving。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#d8e0ea;fontColor=#526070;align=left;verticalAlign=top;spacing=14;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="560" y="885" width="390" height="300" as="geometry"/>
+        </mxCell>
+        <mxCell id="note-guard" value="保护线&#xa;&#xa;数据 invalid、label coverage 不足、或某时间段缺少 active model 时：&#xa;- 该日/分区结果标记 blocked。&#xa;- 只保留异常说明与排除原因。&#xa;- 不参与自动 active 策略统计。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdecec;strokeColor=#ee9a9a;fontColor=#8a1f1f;align=left;verticalAlign=top;spacing=14;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="885" width="410" height="220" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n1" target="n2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n2" target="n3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n3" target="n4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#8b5cf6;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n4" target="n5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#8b5cf6;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n5" target="n6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n6" target="n7"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n7" target="n8"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n8" target="n9"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e9" value="default active latest" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#8b5cf6;strokeWidth=2;fontSize=12;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n9" target="n10"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e10" value="until next training" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#16815f;strokeWidth=2;fontSize=12;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n10" target="n11"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#16815f;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n11" target="n12"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#16815f;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n12" target="n13"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
