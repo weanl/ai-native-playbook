@@ -1,4 +1,37 @@
-# M2-024 页面规格
+# M2-024 MVP 页面规格
+
+## 范围重置
+
+M2-024 当前只聚焦 MVP：基于一次导入的多天数据，完成端到端算法实验与算法效果对比，并在实验前配置 auto-active 策略。
+
+本阶段不设计模型注册、manual promotion、生产 active pointer 修改、回滚、在线 serving 或生产流量切换。后续承接主流程另开设计。
+
+## 核心流程
+
+```text
+Import Multi-Day Dataset
+-> Schema & Quality Check
+-> Build Day Partitions
+-> Configure Experiment Policy
+-> Freeze Experiment Context
+-> Rolling Train / Validate / Active / Infer Loop
+-> Prediction Ledger
+-> Metrics & Algorithm Ranking
+```
+
+关键规则：
+
+- 导入数据包含多天，因此同一次实验会产生多次训练与推理循环。
+- 默认训练周期为 1 天，后续可配置。
+- 默认 auto-active 策略为“最新训练模型自动成为下一时间段 active 模型”，后续可配置门槛。
+- 对 cutoff day `D`，使用 `<= D` 的数据构造训练集与验证集，训练模型 `M_D`。
+- `M_D` 默认在 `D` 之后到下一次训练前的时间段生效。
+- 推理时按样本 `timestamp` 命中 `active.effective_range`，使用对应 `active_model_id` 计算 `predicted_label` 与 `score`。
+- 缺少覆盖某时间段的 active 模型时，该时间段标记 `blocked`，不参与自动 active 策略统计。
+
+流程图 source of truth：
+
+- `docs/product/ui/offline-model-lifecycle.drawio`
 
 ## 信息架构
 
@@ -7,421 +40,161 @@
 ```text
 Overview
 Data
-Experiments
-Batch Compare
-Strategy Simulation
-Continuous Learning
-Models
-History
-Settings
+Policy
+Rolling Experiment
+Results
+Diagnostics
 ```
 
-跨页面核心对象：
+核心对象：
 
-- `dataset version`：数据版本，承载 schema、fingerprint、质量摘要。
-- `experiment run`：单算法实验运行。
-- `batch run`：批量实验运行。
-- `strategy simulation run / report`：离线策略模拟运行与报告，承载每日新增数据后的 dry-run / backtest / recommendation 结果。
-- `train job`：持续学习训练任务。
-- `model version`：模型版本，包含 candidate、active、superseded 等状态。
-- `promotion event`：晋级或回滚审计事件。
-- `artifact`：图表、评估结果、训练输出等可追溯产物。
-
-术语边界：
-
-- `active model` 表示模型注册表中的当前生效版本，不表示在线推理服务或生产流量切换。
-- `promote` 表示候选模型通过证据评审并触发生命周期事件，不表示 M2 实现发布系统。
-
-HTML 原型演示样例：
-
-- 示例对象：`Checkout API latency`。
-- 示例数据版本：`ds-2026.05.18`。
-- 示例算法配置：`IQR / window=96`。
-- 示例训练任务：`job-20260519-01`。
-- 示例候选模型：`model-2026.05.19-c1`。
-- 示例审计事件：`evt-901`。
-
-原型应支持用户通过“下一步 / 上一步 / 直接点击步骤”完成：
-
-```text
-Overview -> Data -> Experiments -> Batch Compare -> Strategy Simulation -> Continuous Learning -> Models -> History
-```
-
-当前阶段的流程重心应先放在实验与策略模拟，而不是急于落地主流程。推荐先以 drawio 作为流程 source of truth，再回填 HTML 原型。
-
-优先关注的实验闭环：
-
-```text
-Daily Data Partition -> Dataset Selection -> Experiment Run
--> Batch Compare -> Candidate Direction -> Strategy Simulation
--> Winning Config
-```
-
-该闭环用于充分比较不同数据集、算法、参数和自动 active 策略，挑选更可靠的候选方向。
-
-M2 离线策略模拟必须输出数据实验效果指标，不能只输出 `would_promote` / `needs_review` / `blocked` 决策。指标至少分四类：
-
-- 单次实验效果：`precision`、`recall`、`f1`、`pa_f1`、误报数、漏报数。
-- 跨数据集稳定性：按 dataset version / rolling window 展示均值、最差值、方差或波动范围。
-- 策略模拟效果：`would_promote_count`、`blocked_count`、`needs_review_count`、模拟 active timeline、相对当前 active 的指标 delta、退化次数。
-- 数据可信度：`label_coverage`、evaluation mode、数据质量分、漂移提示、invalid / partial_failed 影响范围。
-
-最终承接主流程：
-
-```text
-Daily Data Partition -> Training Dataset Version -> Train Job -> Model Artifact
--> Model Version(candidate) -> Offline Evaluation / Evidence -> Manual Promotion
--> Active Model / Archived Previous Model
-```
-
-`experiment run` 与 `batch run` 是当前阶段的优先工作对象：它们负责探索不同数据集上的算法表现、形成训练配置和策略证据；它们不应被表达为 model artifact 的直接生产步骤。
-
-每日新增数据后的自动训练、评估与 `auto-active` 策略应作为 M2 离线策略模拟表达，形态是 dry-run / backtest / recommendation。它可以输出 `would_promote` 和推荐结论，但不得自动修改真实 active pointer。M2-028 的主线仍是 manual promotion。
-
-流程图文件：`docs/product/ui/offline-model-lifecycle.drawio`。
+- `dataset_version`：一次导入后的数据版本。
+- `day_partition`：按天切分后的实验分区。
+- `experiment_policy`：训练周期、auto-active 策略、质量门槛。
+- `algorithm_config`：算法名、参数、seed。
+- `day_cycle`：某个 cutoff day 的训练、验证、active 更新与推理循环。
+- `active_interval`：`active_model_id` 的生效时间段。
+- `prediction_ledger`：按 timestamp 保存的推理结果。
+- `experiment_report`：算法效果对比与策略模拟摘要。
 
 ## Overview
 
 页面目标：
 
-- 让用户在 30 秒内理解 M2 当前阶段的优先闭环。
-- 以 drawio 同构的流程板展示数据实验、策略模拟、主流程承接、停止复核与恢复审计。
-- 同时保留 active baseline、candidate direction、winning config 与 active pointer 的关键状态。
+- 一眼说明 MVP 范围和滚动实验逻辑。
+- 展示当前导入数据覆盖的天数、实验策略和算法排行摘要。
 
 用户动作：
 
-- 点击流程节点进入 Data、Experiments、Batch Compare、Strategy Simulation、Continuous Learning、Models 或 History。
-- 运行下一天策略模拟。
-- 从策略模拟 recommendation 承接到 winning config。
-- 进入待复核 evidence 或回滚审计。
+- 从流程步骤进入 Data、Policy、Rolling Experiment 或 Results。
+- 启动示例滚动实验。
 
 核心信息：
 
-- 优先闭环 A：Dataset Selection、Experiment Run、Batch Compare、Effect Metrics、Active Baseline、Candidate Direction、Experiment Audit Context。
-- 优先闭环 B：Daily Trigger、Auto Build Dataset、Scheduled Train + Evaluate、Effect Metrics + Policy、Policy Decision、Simulation Report、Recommendation。
-- 后续承接主流程：Winning Config、Train Job、Model Artifact、Model Version、Evidence Review、Manual Promotion、Active Model Pointer。
-- 停止与复核：Train Failed、Needs Review / Blocked、No Active Change。
-- 恢复与审计：Rollback Event、Restore Active Pointer、Audit Trail。
+- 数据覆盖范围：例如 `2026-05-01 ~ 2026-05-07`。
+- 默认策略：`1 天训练一次`、`latest model auto-active`。
+- 当前 active timeline 摘要。
+- 算法排行前三名。
 
 下一步动作：
 
-- `Open strategy simulation` -> `Strategy Simulation`
-- `Use winning config` -> `Continuous Learning`
-- `Review candidate` -> `Models`
-- `Inspect data` -> `Data`
-- `Open history` -> `History`
-
-代表性状态：
-
-- 正常：active model 健康，最近训练完成。
-- running：存在 training / evaluating 任务。
-- attention：存在 evidence incomplete 或 partial_failed。
-- empty：尚无模型版本。
+- `Inspect dataset` -> `Data`
+- `Configure policy` -> `Policy`
+- `Run rolling experiment` -> `Rolling Experiment`
+- `View results` -> `Results`
 
 ## Data
 
 页面目标：
 
-- 解释模型学习的数据来源。
-- 展示 dataset version 是否可用于训练、评估和晋级证据。
+- 解释导入数据如何变成可滚动实验的多日分区。
 
 用户动作：
 
-- 查看数据版本列表。
-- 查看 schema、fingerprint、质量摘要。
-- 选择数据版本进入实验或持续学习视图。
+- 查看 schema、质量分、label coverage。
+- 查看每天的数据行数和是否可参与实验。
 
 核心信息：
 
-- Dataset version table：版本、时间范围、行数、指标列、状态、质量分。
-- Schema panel：timestamp、metric、label 角色推断。
-- Fingerprint panel：hash、统计摘要、缺失值、异常比例。
-- Usage panel：被哪些 experiment、batch、train job、model version 使用。
+- Dataset summary：版本、时间范围、行数、metric 列、label 覆盖率。
+- Day partition table：日期、行数、label coverage、质量状态。
+- Invalid partition reason：缺失 label、schema 异常、缺 active baseline 等。
 
 下一步动作：
 
-- `Run experiment` -> `Experiments`
-- `Compare algorithms` -> `Batch Compare`
-- `Use in training window` -> `Continuous Learning`
+- `Use valid partitions` -> `Policy`
 
-代表性状态：
-
-- `draft`：导入中或未验证。
-- `validated`：可用于实验和训练。
-- `invalid`：质量不足，相关动作 disabled。
-- `archived`：仅可追溯。
-
-## Experiments
+## Policy
 
 页面目标：
 
-- 重构单算法实验页，让用户清楚看到输入、参数、结果和诊断。
+- 在实验前配置训练周期与 auto-active 策略。
+- 明确策略会在实验上下文中冻结，避免实验过程中因结果变化而改变规则。
 
 用户动作：
 
-- 选择 dataset version。
-- 选择算法与参数。
-- 查看运行结果、指标、异常点和 artifact。
+- 查看或调整训练周期。
+- 查看 auto-active 默认策略。
+- 查看质量门槛和后续可配置项。
 
 核心信息：
 
-- Input summary：数据版本、时间范围、metric 列、label 可用性。
-- Algorithm panel：算法、参数、随机种子、输入角色要求。
-- Result chart：时间序列、异常点、阈值线。
-- Metrics panel：Precision、Recall、F1、PA-F1 等已支持指标，并说明 `evaluation mode`、`label coverage` 与指标可信度。
-- Diagnostics panel：失败原因、退化提示、artifact 链接。
+- Training cadence：默认 `1 day`。
+- Auto-active policy：默认 `latest trained model becomes active for next interval`。
+- Future gates：`min_metric_delta`、`max_regression`、`min_label_coverage`、`quality_gate`。
+- Initial active model：用于第一个可推理时间段的基线模型。
 
 下一步动作：
 
-- `Add to batch compare` -> `Batch Compare`
-- `Open run history` -> `History`
+- `Freeze policy` -> `Rolling Experiment`
 
-代表性状态：
-
-- empty：未选择数据。
-- running：实验运行中。
-- failed：schema 不合法、算法失败或 artifact 缺失。
-- completed：可查看结果与 artifact。
-
-## Batch Compare
+## Rolling Experiment
 
 页面目标：
 
-- 承载多算法、多参数或多数据版本的批量评估。
-- 帮用户识别稳定候选，而不只看单次最高分。
+- 展示算法/参数组合如何在多天数据上滚动训练、验证、自动 active 与推理。
 
 用户动作：
 
-- 选择批量实验结果。
-- 查看排行榜、矩阵、热力图。
-- 定位 partial_failed 的组合。
-- 选择候选配置进入持续学习。
+- 选择算法配置。
+- 单步推进 cutoff day。
+- 查看某天的 train / validate / active / infer 结果。
 
 核心信息：
 
-- Leaderboard：算法、参数、数据版本、指标、状态。
-- Metric matrix：不同算法和数据版本的横向比较。
-- Heatmap：性能分布与异常组合。
-- Failure panel：失败组合、错误摘要、影响范围。
+- Algorithm matrix：算法、参数、seed。
+- Day cycle：`D`、训练数据范围、验证数据范围、模型 ID、active interval。
+- Active inference：推理时间段、命中的 `active_model_id`、预测数量。
+- Prediction ledger preview：timestamp、active_model_id、predicted_label、score、label。
 
 下一步动作：
 
-- `Use as candidate direction` -> `Strategy Simulation`
-- `Inspect failed run` -> `History`
+- `Continue next day`
+- `Open results` -> `Results`
+- `Open diagnostics` -> `Diagnostics`
 
-代表性状态：
-
-- running：批量实验未完成。
-- partial_failed：部分组合失败，但成功结果可查看。
-- failed：全部失败或配置不可用。
-- completed：结果完整。
-
-## Strategy Simulation
+## Results
 
 页面目标：
 
-- 在不修改真实 active pointer 的前提下，模拟每日新增数据后的训练、评估与 auto-active 策略。
-- 量化候选方向在不同 dataset version / rolling window 下是否足够稳健。
-- 输出 `would_promote` / `needs_review` / `blocked` 推荐结论和可解释指标。
+- 汇总多日滚动实验结果，对比不同算法与参数效果。
 
 用户动作：
 
-- 选择 candidate direction、rolling window 和策略阈值。
-- 查看每日 dry-run / backtest 结果。
-- 对比模拟 active timeline 与当前 active baseline。
-- 将通过策略模拟的 winning config 承接到持续学习主流程。
+- 按算法、参数、日期查看指标。
+- 查看 active switch timeline。
+- 比较候选算法配置。
 
 核心信息：
 
-- Policy setup：策略阈值、最小 label coverage、退化容忍度、数据质量门槛。
-- Daily simulation table：dataset version、训练窗口、评估窗口、决策、阻断原因。
-- Effect metrics：Precision、Recall、F1、PA-F1、误报数、漏报数、candidate vs active delta。
-- Stability summary：跨 dataset version / rolling window 的均值、最差值和波动范围。
-- Active timeline：模拟 active 版本变化、would_promote 次数、blocked 次数、needs_review 次数。
-- Recommendation panel：winning config、需要人工复核的证据项、进入 Continuous Learning 的条件。
+- Metrics：`precision`、`recall`、`f1`、`pa_f1`、`fp`、`fn`、`label_coverage`。
+- Ranking：按整体 PA-F1、稳定性、退化项排序。
+- Active timeline：每天使用的 active 模型。
+- Policy summary：`auto_active_count`、`blocked_count`、`needs_review_count`。
 
 下一步动作：
 
-- `Use winning config` -> `Continuous Learning`
-- `Adjust policy` -> 当前页
-- `Inspect blocked run` -> `History`
+- `Choose candidate algorithm config`
+- 后续另行进入模型生命周期主流程设计。
 
-代表性状态：
-
-- empty：尚未选择候选方向或策略。
-- running：策略模拟运行中。
-- partial_failed：部分数据分区或组合失败，但成功结果可评估。
-- completed：产生推荐结论和效果指标。
-- blocked：数据质量、标签覆盖率或指标退化触发阻断。
-- needs_review：指标有提升但存在退化、漂移或 proxy 评估风险。
-
-## Continuous Learning
+## Diagnostics
 
 页面目标：
 
-- 展示 winning config 如何从数据窗口产生 train job 与 candidate model。
-- 明确训练任务状态与模型生命周期状态的区别。
+- 展示被排除或 blocked 的分区、算法组合和原因。
 
 用户动作：
 
-- 查看 rolling window。
-- 查看 train job 队列。
-- 查看训练输入、评估输入和输出 artifact。
-- 跳转到 candidate model。
+- 查看 invalid day partition。
+- 查看缺少 active model 覆盖的时间段。
+- 查看 partial failed 算法配置。
 
 核心信息：
 
-- Window timeline：训练窗口、评估窗口、回测窗口。
-- Train job table：状态、输入数据版本、算法配置、输出模型版本。
-- Job detail：参数、metrics、artifact、错误信息。
-- Candidate output：是否生成 candidate model，证据是否完整。
+- `blocked` 原因。
+- 受影响日期与算法配置。
+- 是否参与最终指标统计。
 
 下一步动作：
 
-- `Review candidate` -> `Models`
-- `Inspect failed job` -> `History`
-
-代表性状态：
-
-- `queued`
-- `training`
-- `evaluating`
-- `completed`
-- `failed`
-- `cancelled`
-
-## Models
-
-页面目标：
-
-- 展示模型版本列表和 candidate vs active 对比。
-- 用 evidence panel 支撑晋级或复核判断。
-
-用户动作：
-
-- 选择 candidate model。
-- 对比 active model。
-- 查看 evidence panel。
-- 在证据充分时发起 promote。
-- 在需要时查看 rollback 目标。
-
-核心信息：
-
-- Model version table：版本、算法、训练数据、评估数据、状态、创建时间。
-- Candidate vs active comparison：指标差异、退化项、稳定性提示。
-- Evidence panel：
-  - 训练数据版本。
-  - 评估数据版本。
-  - 回测窗口。
-  - 标签覆盖率。
-  - 评估模式：`labeled` / `unlabeled` / `proxy`。
-  - 指标可信度。
-  - candidate vs active 指标差异。
-  - 退化项。
-  - 数据质量摘要。
-  - 漂移或分布变化提示。
-  - 模型 artifact ID / path / checksum / version。
-  - 算法名称、参数、seed。
-  - train job ID 与 experiment run ID。
-  - artifact 链接。
-  - promote / rollback 审计记录。
-- Action panel：promote、request review、rollback。
-
-下一步动作：
-
-- evidence sufficient -> `Promote candidate`
-- evidence incomplete -> 回到缺失证据来源页面
-- rollback investigation -> `History`
-
-代表性状态：
-
-- `candidate`
-- `rejected`
-- `promoted`
-- `active`
-- `superseded`
-- `archived`
-- `rolled_back`
-
-不可晋级规则：
-
-- 缺少训练数据版本。
-- 缺少评估数据版本或回测窗口。
-- 缺少标签覆盖率或评估模式说明。
-- `unlabeled` 或 `proxy` 模式下将 F1 / PA-F1 直接作为晋级证据。
-- 指标存在关键退化但无说明。
-- 数据质量 invalid。
-- 关键 artifact 缺失。
-- 模型 artifact 缺少 ID、路径、checksum 或版本。
-- 缺少 algorithm / params / seed / train_job_id / run_id 等复现字段。
-
-## History
-
-页面目标：
-
-- 统一查询 run、batch、train job、promotion event。
-- 支持从历史事件回到证据链。
-
-用户动作：
-
-- 按对象类型、状态、时间过滤。
-- 查看 promotion / rollback 审计记录。
-- 跳回相关数据、模型或训练任务。
-
-核心信息：
-
-- Timeline：事件类型、状态、关联对象、操作者、时间。
-- Audit detail：动作、原因、前后版本、证据摘要。
-- Trace links：dataset、run、batch、job、model、artifact。
-
-History event 最低字段：
-
-- `event_id`
-- `event_type`
-- `subject_type`
-- `subject_id`
-- `source_model_version`（promotion / rollback 事件适用）
-- `target_model_version`（promotion / rollback 事件适用）
-- `actor`
-- `reason`
-- `created_at`
-- `related_refs`
-- `related_artifacts`
-
-下一步动作：
-
-- `Open model evidence` -> `Models`
-- `Open train job` -> `Continuous Learning`
-- `Open dataset` -> `Data`
-
-代表性状态：
-
-- empty：无历史记录。
-- filtered empty：筛选条件无结果。
-- rollback：展示回滚原因和目标版本。
-
-## Settings
-
-页面目标：
-
-- 承载低频配置说明与只读演示配置。
-- M2-024 原型不实现真实配置保存。
-
-用户动作：
-
-- 查看 mock 环境配置。
-- 查看未来权限、审计、数据保留策略入口。
-
-核心信息：
-
-- Environment：demo / local。
-- Retention placeholder：artifact 与 history 保留策略。
-- Governance placeholder：权限、审批、审计入口。
-
-下一步动作：
-
-- 无强主线动作，作为辅助页面存在。
-
-代表性状态：
-
-- readonly：当前为静态原型，不保存配置。
+- 返回 Data 或 Rolling Experiment 调整输入与策略。

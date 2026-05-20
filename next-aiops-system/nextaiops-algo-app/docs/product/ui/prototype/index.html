@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NextAIOps 实验与策略模拟工作台原型</title>
+  <title>NextAIOps 滚动算法实验 MVP 原型</title>
   <style>
     :root {
       --bg: #f6f8fb;
       --surface: #ffffff;
-      --surface-soft: #f8fafc;
+      --soft: #f8fafc;
       --text: #172033;
-      --muted: #5b677a;
+      --muted: #5d6a7f;
       --border: #d9e1ec;
       --blue: #2563eb;
       --blue-soft: #eef4ff;
@@ -32,8 +32,8 @@
 
     body {
       margin: 0;
-      color: var(--text);
       background: var(--bg);
+      color: var(--text);
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 14px;
       line-height: 1.55;
@@ -45,9 +45,9 @@
     }
 
     .app {
-      min-height: 100vh;
       display: grid;
-      grid-template-columns: 236px minmax(0, 1fr);
+      grid-template-columns: 230px minmax(0, 1fr);
+      min-height: 100vh;
     }
 
     .sidebar {
@@ -55,14 +55,14 @@
       top: 0;
       height: 100vh;
       padding: 20px 14px;
-      color: #e7eef8;
       background: var(--slate);
+      color: #e7eef8;
     }
 
     .brand {
       padding: 0 10px 18px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
       margin-bottom: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
     }
 
     .brand strong {
@@ -88,9 +88,9 @@
       border: 0;
       border-radius: 8px;
       padding: 10px 11px;
-      text-align: left;
       color: #cad6e7;
       background: transparent;
+      text-align: left;
       cursor: pointer;
       white-space: nowrap;
     }
@@ -108,38 +108,48 @@
 
     .topbar {
       display: flex;
+      justify-content: space-between;
       gap: 16px;
       align-items: flex-start;
-      justify-content: space-between;
       margin-bottom: 16px;
     }
 
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
     h1 {
-      margin: 0;
+      margin-bottom: 6px;
       font-size: 25px;
       line-height: 34px;
     }
 
     h2 {
-      margin: 0 0 12px;
+      margin-bottom: 12px;
       font-size: 18px;
       line-height: 26px;
     }
 
     h3 {
-      margin: 0 0 8px;
+      margin-bottom: 8px;
       font-size: 15px;
       line-height: 22px;
     }
 
     p {
-      margin: 0 0 10px;
+      margin-bottom: 10px;
     }
 
-    .subtitle {
-      margin-top: 6px;
+    .subtitle,
+    .small {
       color: var(--muted);
-      max-width: 960px;
+    }
+
+    .small {
+      font-size: 12px;
     }
 
     .toolbar,
@@ -151,27 +161,31 @@
       justify-content: flex-end;
     }
 
-    .btn {
+    .btn,
+    select {
+      min-height: 36px;
       border: 1px solid var(--border);
       border-radius: 8px;
-      min-height: 36px;
       padding: 8px 12px;
-      color: var(--text);
       background: var(--surface);
+      color: var(--text);
+    }
+
+    .btn {
       cursor: pointer;
       white-space: nowrap;
     }
 
     .btn.primary {
       border-color: var(--blue);
-      color: #ffffff;
       background: var(--blue);
+      color: #ffffff;
     }
 
     .btn.violet {
       border-color: var(--violet);
-      color: #ffffff;
       background: var(--violet);
+      color: #ffffff;
     }
 
     .btn:disabled {
@@ -195,7 +209,7 @@
     }
 
     .card {
-      min-height: 118px;
+      min-height: 116px;
       padding: 15px;
     }
 
@@ -208,7 +222,7 @@
       gap: 14px;
     }
 
-    .scenario {
+    .summary {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 14px;
@@ -216,39 +230,25 @@
       margin-bottom: 16px;
     }
 
-    .scenario-body {
+    .flow {
       display: grid;
-      gap: 10px;
-    }
-
-    .scenario-line {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .step-strip {
-      display: grid;
-      grid-template-columns: repeat(8, minmax(110px, 1fr));
+      grid-template-columns: repeat(5, minmax(135px, 1fr));
       gap: 8px;
       margin-top: 12px;
     }
 
     .step {
-      min-height: 64px;
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 8px;
+      padding: 9px;
       background: #ffffff;
-      color: var(--muted);
-      cursor: pointer;
       text-align: left;
+      cursor: pointer;
+      min-height: 64px;
     }
 
     .step strong {
       display: block;
-      color: var(--text);
       font-size: 12px;
       line-height: 18px;
     }
@@ -258,27 +258,34 @@
       box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.14);
     }
 
-    .step.done {
-      border-color: #b9e5d4;
-      background: var(--green-soft);
+    .grid-2 {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(330px, 0.85fr);
+      gap: 14px;
     }
 
-    .small,
-    .muted {
-      color: var(--muted);
-      font-size: 12px;
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(210px, 1fr));
+      gap: 14px;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      gap: 14px;
+    }
+
+    .metric {
+      font-size: 26px;
+      line-height: 34px;
+      font-weight: 760;
     }
 
     .kicker {
       color: var(--muted);
       font-size: 12px;
       margin-bottom: 7px;
-    }
-
-    .metric {
-      font-size: 25px;
-      line-height: 34px;
-      font-weight: 760;
     }
 
     .status {
@@ -299,134 +306,6 @@
     .s-orange { color: var(--orange); background: #fff4df; border-color: #ffd99b; }
     .s-red { color: var(--red); background: var(--red-soft); border-color: #f3b7b7; }
     .s-gray { color: #667085; background: #f1f3f6; border-color: #d7dce3; }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(330px, 0.8fr);
-      gap: 14px;
-    }
-
-    .grid-3 {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(220px, 1fr));
-      gap: 14px;
-    }
-
-    .grid-4 {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(180px, 1fr));
-      gap: 14px;
-    }
-
-    .journey {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(160px, 1fr));
-      gap: 10px;
-    }
-
-    .journey div {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px;
-      background: var(--surface-soft);
-    }
-
-    .flow-board {
-      display: grid;
-      gap: 12px;
-    }
-
-    .lane {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 14px;
-      background: var(--surface);
-    }
-
-    .lane.blue { background: #f8fbff; border-color: #c9d8f6; }
-    .lane.violet { background: var(--violet-soft); border-color: #c4b5fd; }
-    .lane.green { background: #f8fafc; border-color: #d8e0ea; }
-    .lane.red { background: #fffafa; border-color: #f3c4c4; }
-    .lane.orange { background: var(--orange-soft); border-color: #ffd99b; }
-
-    .lane-title {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 10px;
-      font-weight: 760;
-    }
-
-    .node-row {
-      display: grid;
-      grid-template-columns: repeat(7, minmax(126px, 1fr));
-      gap: 12px;
-    }
-
-    .node-row.compact {
-      grid-template-columns: repeat(3, minmax(180px, 1fr));
-    }
-
-    .node {
-      position: relative;
-      min-height: 92px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px;
-      background: #ffffff;
-      color: var(--text);
-      text-align: left;
-      cursor: pointer;
-      box-shadow: 0 4px 14px rgba(23, 32, 51, 0.05);
-    }
-
-    .node::after {
-      content: "->";
-      position: absolute;
-      top: 36px;
-      right: -17px;
-      color: #718096;
-      font-weight: 760;
-    }
-
-    .node.last::after,
-    .node-row.compact .node::after {
-      content: "";
-    }
-
-    .node strong {
-      display: block;
-      margin: 6px 0 4px;
-      font-size: 13px;
-      line-height: 18px;
-    }
-
-    .node.blue { border-color: #b8cdf7; background: var(--blue-soft); }
-    .node.violet { border-color: #c4b5fd; background: #ffffff; }
-    .node.green { border-color: #b9e5d4; background: var(--green-soft); }
-    .node.orange { border-color: #ffd99b; background: var(--orange-soft); }
-    .node.red { border-color: #f3b7b7; background: var(--red-soft); }
-
-    .node.active,
-    .highlight {
-      outline: 3px solid rgba(37, 99, 235, 0.25);
-      outline-offset: 3px;
-    }
-
-    .bridge {
-      display: grid;
-      grid-template-columns: minmax(200px, 1fr) auto minmax(200px, 1fr);
-      gap: 12px;
-      align-items: center;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .bridge-line {
-      height: 1px;
-      background: repeating-linear-gradient(90deg, #8b5cf6 0 8px, transparent 8px 14px);
-    }
 
     table {
       width: 100%;
@@ -454,9 +333,36 @@
       border-bottom: 0;
     }
 
-    tr.row-active td {
+    tr.active-row td {
       background: #f7fbff;
       box-shadow: inset 3px 0 0 var(--blue);
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .event {
+      border-left: 4px solid var(--blue);
+      border-radius: 6px;
+      padding: 10px 12px;
+      background: #f8fbff;
+    }
+
+    .event.green {
+      border-left-color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .event.violet {
+      border-left-color: var(--violet);
+      background: var(--violet-soft);
+    }
+
+    .event.warn {
+      border-left-color: var(--orange);
+      background: var(--orange-soft);
     }
 
     .bars {
@@ -466,7 +372,7 @@
 
     .bar {
       display: grid;
-      grid-template-columns: 138px 1fr 68px;
+      grid-template-columns: 120px 1fr 66px;
       gap: 10px;
       align-items: center;
     }
@@ -488,105 +394,18 @@
     .fill.warn { background: var(--orange); }
     .fill.bad { background: var(--red); }
 
-    .matrix {
-      display: grid;
-      grid-template-columns: 128px repeat(4, minmax(88px, 1fr));
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
-    .cell {
-      min-height: 44px;
-      border-right: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-      padding: 10px;
-      background: #ffffff;
-    }
-
-    .cell.head {
-      color: var(--muted);
-      background: #f8fafc;
-      font-weight: 740;
-    }
-
-    .cell.hot { color: var(--green); background: var(--green-soft); font-weight: 760; }
-    .cell.warm { color: var(--orange); background: #fff4df; font-weight: 760; }
-    .cell.bad { color: var(--red); background: var(--red-soft); font-weight: 760; }
-
-    .timeline {
-      display: grid;
-      gap: 10px;
-    }
-
-    .event {
-      border-left: 4px solid var(--blue);
-      border-radius: 6px;
-      padding: 10px 12px;
-      background: #f8fbff;
-    }
-
-    .event.violet { border-left-color: var(--violet); background: var(--violet-soft); }
-    .event.warn { border-left-color: var(--orange); background: var(--orange-soft); }
-    .event.fail { border-left-color: var(--red); background: var(--red-soft); }
-    .event.green { border-left-color: var(--green); background: var(--green-soft); }
-
-    .evidence {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(190px, 1fr));
-      gap: 10px;
-    }
-
-    .evidence-item {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px;
-      background: #fbfdff;
-      min-height: 104px;
-    }
-
     .callout {
       border: 1px solid #ffd99b;
       border-radius: 8px;
       padding: 12px;
-      color: #694000;
       background: var(--orange-soft);
+      color: #694000;
     }
 
-    .danger {
-      border-color: #f3b7b7;
-      color: #8a1f1f;
-      background: var(--red-soft);
-    }
-
-    .policy-panel {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(150px, 1fr));
-      gap: 10px;
-    }
-
-    .policy-box {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px;
-      background: var(--surface-soft);
-    }
-
-    .footer-note {
-      padding-top: 8px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    @media (max-width: 1280px) {
-      .step-strip,
-      .node-row,
+    @media (max-width: 1180px) {
+      .flow,
       .grid-4 {
-        grid-template-columns: repeat(4, minmax(150px, 1fr));
-      }
-
-      .node::after {
-        display: none;
+        grid-template-columns: repeat(2, minmax(180px, 1fr));
       }
 
       .grid-2 {
@@ -594,7 +413,7 @@
       }
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 820px) {
       .app {
         grid-template-columns: 1fr;
       }
@@ -613,19 +432,14 @@
       }
 
       .topbar,
-      .scenario,
-      .bridge {
+      .summary {
         display: grid;
       }
 
-      .step-strip,
-      .node-row,
-      .node-row.compact,
+      .flow,
+      .grid-2,
       .grid-3,
-      .grid-4,
-      .journey,
-      .evidence,
-      .policy-panel {
+      .grid-4 {
         grid-template-columns: 1fr;
       }
     }
@@ -636,7 +450,7 @@
     <aside class="sidebar">
       <div class="brand">
         <strong>NextAIOps</strong>
-        <span>M2 实验与策略模拟原型</span>
+        <span>Rolling Experiment MVP</span>
       </div>
       <nav class="nav" id="nav"></nav>
     </aside>
@@ -648,584 +462,231 @@
           <div class="subtitle" id="page-subtitle"></div>
         </div>
         <div class="toolbar">
-          <button class="btn" type="button" onclick="focusStep(6)">打开策略模拟</button>
-          <button class="btn primary" type="button" onclick="focusStep(7)">承接 winning config</button>
+          <select id="algorithm-select" aria-label="algorithm">
+            <option value="iqr">IQR / window=96</option>
+            <option value="sigma">Three Sigma / sigma=3</option>
+            <option value="tsb">TSB Bridge / adapter=v1</option>
+          </select>
+          <button class="btn primary" type="button" onclick="advanceDay()">推进一天</button>
         </div>
       </div>
 
-      <div class="panel scenario">
-        <div class="scenario-body">
-          <div class="kicker">演示对象</div>
-          <div class="scenario-line">
-            <span class="status s-blue">KPI</span>
-            <strong id="focus-object">Checkout API latency</strong>
-            <span class="small">从数据实验到策略模拟，再承接为 train job、model version 与 promotion event。</span>
-          </div>
-          <div>
-            <strong id="focus-title">从数据版本开始实验</strong>
-            <div class="small" id="focus-detail"></div>
-          </div>
-          <div class="step-strip" id="step-strip"></div>
+      <div class="panel summary">
+        <div>
+          <div class="kicker">实验对象</div>
+          <strong>Checkout API latency</strong>
+          <div class="small" id="scenario-text"></div>
+          <div class="flow" id="flow"></div>
         </div>
         <div class="actions">
-          <button class="btn" type="button" id="prev-step">上一步</button>
-          <button class="btn primary" type="button" id="next-step">下一步</button>
-          <button class="btn violet" type="button" onclick="simulateNextDay()">模拟下一天数据</button>
+          <button class="btn" type="button" onclick="setDay(0)">回到 D1</button>
+          <button class="btn violet" type="button" onclick="showPage('Policy')">查看策略</button>
+          <button class="btn" type="button" onclick="showPage('Results')">查看排行</button>
         </div>
       </div>
 
       <section class="page active" data-page="Overview">
-        <div class="flow-board">
-          <div class="lane blue">
-            <div class="lane-title">
-              <span>优先闭环 A：数据实验与算法选择</span>
-              <span class="status s-blue">current priority</span>
-            </div>
-            <div class="node-row">
-              <button class="node" type="button" data-step="0" data-node="a-data">
-                <span class="status s-green">validated</span>
-                <strong>Dataset Selection</strong>
-                <span>dataset version / window</span><br>
-                <span class="small">quality + label coverage</span>
-              </button>
-              <button class="node blue" type="button" data-step="1" data-node="a-exp">
-                <span class="status s-green">completed</span>
-                <strong>Experiment Run</strong>
-                <span>单算法实验</span><br>
-                <span class="small">解释算法行为</span>
-              </button>
-              <button class="node blue" type="button" data-step="2" data-node="a-batch">
-                <span class="status s-orange">partial_failed</span>
-                <strong>Batch Compare</strong>
-                <span>多算法 / 多参数 / 多数据集</span><br>
-                <span class="small">保留失败影响</span>
-              </button>
-              <button class="node" type="button" data-step="3" data-node="a-metrics">
-                <span class="status s-blue">metrics</span>
-                <strong>Effect Metrics</strong>
-                <span>F1 / PA-F1 / FP / FN</span><br>
-                <span class="small">per-dataset stability</span>
-              </button>
-              <button class="node green" type="button" data-step="4" data-node="a-baseline">
-                <span class="status s-green">baseline</span>
-                <strong>Active Baseline</strong>
-                <span>candidate vs active delta</span><br>
-                <span class="small">退化项与漂移提示</span>
-              </button>
-              <button class="node blue" type="button" data-step="5" data-node="a-direction">
-                <span class="status s-blue">selected</span>
-                <strong>Candidate Direction</strong>
-                <span>IQR / window=96</span><br>
-                <span class="small">进入策略模拟</span>
-              </button>
-              <button class="node last" type="button" data-step="5" data-node="a-audit">
-                <span class="status s-gray">refs</span>
-                <strong>Experiment Audit Context</strong>
-                <span>run id / batch id / artifacts</span><br>
-                <span class="small">可回溯实验来源</span>
-              </button>
+        <div class="grid-4">
+          <div class="card">
+            <div class="kicker">Dataset</div>
+            <div class="metric">7 天</div>
+            <span class="status s-blue">multi-day</span>
+            <p class="small">2026-05-01 至 2026-05-07。</p>
+          </div>
+          <div class="card">
+            <div class="kicker">Cadence</div>
+            <div class="metric">1 day</div>
+            <span class="status s-violet">default</span>
+            <p class="small">后续可配置。</p>
+          </div>
+          <div class="card">
+            <div class="kicker">Current Cutoff</div>
+            <div class="metric" id="overview-cutoff">D1</div>
+            <span class="status s-green">rolling</span>
+            <p class="small" id="overview-active">M_D1 active for D2。</p>
+          </div>
+          <div class="card">
+            <div class="kicker">Best PA-F1</div>
+            <div class="metric">0.86</div>
+            <span class="status s-green">IQR</span>
+            <p class="small">基于同一滚动规则对比。</p>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="section">
+            <h2>Rolling Loop</h2>
+            <div class="timeline">
+              <div class="event"><strong>导入多天数据</strong><br><span class="small">生成 day partitions：D1 到 D7。</span></div>
+              <div class="event violet"><strong>实验前冻结策略</strong><br><span class="small">默认 1 天训练一次，最新训练模型自动成为下一时间段 active。</span></div>
+              <div class="event green"><strong>按日回放</strong><br><span class="small">用 <= D 的数据训练 M_D，用 M_D 推理下一时间段。</span></div>
             </div>
           </div>
-
-          <div class="lane violet">
-            <div class="lane-title">
-              <span>优先闭环 B：每日新增数据后的离线策略模拟</span>
-              <span class="status s-violet">dry-run / backtest</span>
-            </div>
-            <div class="node-row">
-              <button class="node violet" type="button" data-step="6" data-node="b-trigger">
-                <span class="status s-violet">daily</span>
-                <strong>Daily Trigger</strong>
-                <span>新增 partition validated</span><br>
-                <span class="small">离线 dry-run</span>
-              </button>
-              <button class="node violet" type="button" data-step="6" data-node="b-dataset">
-                <span class="status s-green">built</span>
-                <strong>Auto Build Dataset</strong>
-                <span>policy rolling window</span><br>
-                <span class="small">fingerprint 去重</span>
-              </button>
-              <button class="node violet" type="button" data-step="6" data-node="b-train">
-                <span class="status s-violet">simulated</span>
-                <strong>Scheduled Train + Evaluate</strong>
-                <span>训练 candidate</span><br>
-                <span class="small">生成 evidence</span>
-              </button>
-              <button class="node violet" type="button" data-step="6" data-node="b-policy">
-                <span class="status s-blue">policy</span>
-                <strong>Effect Metrics + Policy</strong>
-                <span>min delta / max regression</span><br>
-                <span class="small">quality / drift / label</span>
-              </button>
-              <button class="node orange" type="button" data-step="6" data-node="b-gate">
-                <span class="status s-orange" id="policy-decision-chip">needs_review</span>
-                <strong>Policy Decision</strong>
-                <span id="policy-decision-text">误报退化需复核</span><br>
-                <span class="small">不修改真实 active pointer</span>
-              </button>
-              <button class="node violet" type="button" data-step="6" data-node="b-report">
-                <span class="status s-violet">report</span>
-                <strong>Simulation Report</strong>
-                <span>active timeline</span><br>
-                <span class="small">promote / blocked counts</span>
-              </button>
-              <button class="node last" type="button" data-step="6" data-node="b-recommend">
-                <span class="status s-blue">recommendation</span>
-                <strong>Recommendation</strong>
-                <span>进入 manual promotion</span><br>
-                <span class="small">或保持人工复核</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="bridge">
-            <div class="bridge-line"></div>
-            <span>策略模拟推荐 winning config</span>
-            <div class="bridge-line"></div>
-          </div>
-
-          <div class="lane green">
-            <div class="lane-title">
-              <span>后续承接主流程：落成模型版本、晋级事件与 active pointer</span>
-              <span class="status s-green">manual promotion</span>
-            </div>
-            <div class="node-row">
-              <button class="node" type="button" data-step="7" data-node="m-config">
-                <span class="status s-blue">winning</span>
-                <strong>Winning Config</strong>
-                <span>算法 / 参数 / 数据窗口</span><br>
-                <span class="small">来自实验与策略模拟</span>
-              </button>
-              <button class="node" type="button" data-step="7" data-node="m-train">
-                <span class="status s-green">completed</span>
-                <strong>Train Job</strong>
-                <span>algo / params / seed</span><br>
-                <span class="small">input: training_dataset_id</span>
-              </button>
-              <button class="node green" type="button" data-step="7" data-node="m-artifact">
-                <span class="status s-green">artifact</span>
-                <strong>Model Artifact</strong>
-                <span>model.json + schema</span><br>
-                <span class="small">params + metrics</span>
-              </button>
-              <button class="node blue" type="button" data-step="7" data-node="m-version">
-                <span class="status s-blue">candidate</span>
-                <strong>Model Version</strong>
-                <span>status: candidate</span><br>
-                <span class="small">links job + artifact</span>
-              </button>
-              <button class="node" type="button" data-step="7" data-node="m-evidence">
-                <span class="status s-orange">needs_review</span>
-                <strong>Evidence Review</strong>
-                <span>candidate vs active</span><br>
-                <span class="small">labeled / proxy / unlabeled</span>
-              </button>
-              <button class="node" type="button" data-step="7" data-node="m-promote">
-                <span class="status s-orange">pending</span>
-                <strong>Manual Promotion</strong>
-                <span>人工触发受控晋级</span><br>
-                <span class="small">非无人值守上线</span>
-              </button>
-              <button class="node green last" type="button" data-step="7" data-node="m-active">
-                <span class="status s-green">active</span>
-                <strong>Active Model Pointer</strong>
-                <span>scope 内唯一 active</span><br>
-                <span class="small">作为后续 baseline</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="grid-2">
-            <div class="lane red">
-              <div class="lane-title">
-                <span>停止与复核</span>
-                <span class="status s-red">no active change</span>
-              </div>
-              <div class="node-row compact">
-                <button class="node red" type="button" data-step="6" data-node="s-train-fail">
-                  <span class="status s-red">failed</span>
-                  <strong>Train Failed</strong>
-                  <span>记录 error_message</span>
-                </button>
-                <button class="node red" type="button" data-step="6" data-node="s-review">
-                  <span class="status s-orange">blocked</span>
-                  <strong>Needs Review / Blocked</strong>
-                  <span>证据不足或策略退化</span>
-                </button>
-                <button class="node red" type="button" data-step="6" data-node="s-no-active">
-                  <span class="status s-gray">unchanged</span>
-                  <strong>No Active Change</strong>
-                  <span>输出原因与指标报告</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="lane orange">
-              <div class="lane-title">
-                <span>恢复与审计</span>
-                <span class="status s-orange">rollback audit</span>
-              </div>
-              <div class="node-row compact">
-                <button class="node orange" type="button" data-step="8" data-node="r-event">
-                  <span class="status s-orange">rollback</span>
-                  <strong>Rollback Event</strong>
-                  <span>人工回滚到历史模型</span>
-                </button>
-                <button class="node orange" type="button" data-step="8" data-node="r-restore">
-                  <span class="status s-green">restored</span>
-                  <strong>Restore Active Pointer</strong>
-                  <span>只更新 active 指针</span>
-                </button>
-                <button class="node orange" type="button" data-step="8" data-node="r-audit">
-                  <span class="status s-gray">audit</span>
-                  <strong>Audit Trail</strong>
-                  <span>actor / reason / refs</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="callout">
-            边界说明：M2 可实现离线策略模拟和效果指标报告；真实无人值守 auto-active、在线 serving、生产流量切换、多租户权限仍不属于当前主流程。
+          <div class="section">
+            <h2>Active Timeline</h2>
+            <table>
+              <thead><tr><th>active_model_id</th><th>effective range</th><th>inference day</th></tr></thead>
+              <tbody id="active-timeline"></tbody>
+            </table>
           </div>
         </div>
       </section>
 
       <section class="page" data-page="Data">
-        <div class="journey">
-          <div><strong>页面目标</strong><br>解释实验与策略模拟的数据来源。</div>
-          <div><strong>用户动作</strong><br>选择 dataset version、rolling window 与 label coverage。</div>
-          <div><strong>核心信息</strong><br>schema、fingerprint、质量分、是否可评估。</div>
-          <div><strong>下一步动作</strong><br>进入单实验或策略模拟的 daily trigger。</div>
-        </div>
         <div class="grid-2">
-          <div class="section" data-focus="a-data">
-            <h2>Dataset Selection</h2>
+          <div class="section">
+            <h2>Dataset Version</h2>
             <table>
-              <thead><tr><th>dataset version</th><th>状态</th><th>窗口</th><th>label coverage</th><th>质量摘要</th><th>用途</th></tr></thead>
+              <thead><tr><th>字段</th><th>值</th><th>状态</th></tr></thead>
               <tbody>
-                <tr class="row-active"><td>ds-2026.05.18</td><td><span class="status s-green">validated</span></td><td>05-01 ~ 05-18</td><td>100%</td><td>缺失 0.3%，schema 完整</td><td>实验、训练、策略模拟</td></tr>
-                <tr><td>ds-2026.05.19</td><td><span class="status s-green">validated</span></td><td>daily partition</td><td>96%</td><td>延迟分布右移 3.1%</td><td>daily dry-run</td></tr>
-                <tr><td>ds-2026.05.20</td><td><span class="status s-orange" id="daily-dataset-state">draft</span></td><td>daily partition</td><td id="daily-label">pending</td><td id="daily-quality">等待验证</td><td id="daily-usage">不可模拟</td></tr>
-                <tr><td>ds-2026.05.03-bad</td><td><span class="status s-red">invalid</span></td><td>05-03</td><td>0%</td><td>缺少 label</td><td>不可作为 F1 / PA-F1 证据</td></tr>
+                <tr><td>dataset_version</td><td>ds-2026.05.01-07</td><td><span class="status s-blue">imported</span></td></tr>
+                <tr><td>time range</td><td>2026-05-01 ~ 2026-05-07</td><td><span class="status s-green">valid</span></td></tr>
+                <tr><td>schema</td><td>timestamp + latency + cpu + mem + label</td><td><span class="status s-green">valid</span></td></tr>
+                <tr><td>label coverage</td><td>96%</td><td><span class="status s-green">usable</span></td></tr>
               </tbody>
             </table>
           </div>
           <div class="section">
-            <h2>Schema 与 Fingerprint</h2>
-            <div class="grid-3">
-              <div class="card"><div class="kicker">Roles</div><p>timestamp: `timestamp`<br>metric: `latency`, `cpu_usage`, `mem_usage`<br>label: `is_anomaly`</p></div>
-              <div class="card"><div class="kicker">Fingerprint</div><p>fp_8a31c2<br>rows: 12,960<br>metrics: 3</p></div>
-              <div class="card"><div class="kicker">Quality Gate</div><p>missing rate <= 1%<br>label coverage >= 90%<br>drift warning allowed</p></div>
-            </div>
+            <h2>Day Partitions</h2>
+            <table>
+              <thead><tr><th>day</th><th>rows</th><th>label coverage</th><th>status</th></tr></thead>
+              <tbody id="partition-table"></tbody>
+            </table>
           </div>
         </div>
       </section>
 
-      <section class="page" data-page="Experiments">
-        <div class="journey">
-          <div><strong>页面目标</strong><br>解释单算法在单数据版本上的行为。</div>
-          <div><strong>用户动作</strong><br>选择算法、参数、seed，查看结果与 artifact。</div>
-          <div><strong>核心信息</strong><br>precision、recall、F1、PA-F1、阈值线。</div>
-          <div><strong>下一步动作</strong><br>加入 batch compare。</div>
-        </div>
-        <div class="grid-2">
-          <div class="section" data-focus="a-exp">
-            <h2>Experiment Run</h2>
-            <table>
-              <thead><tr><th>run_id</th><th>算法</th><th>参数</th><th>dataset</th><th>状态</th><th>F1</th><th>PA-F1</th></tr></thead>
-              <tbody>
-                <tr class="row-active"><td>run-1042</td><td>IQR</td><td>window=96</td><td>ds-2026.05.18</td><td><span class="status s-green">completed</span></td><td>0.81</td><td>0.86</td></tr>
-                <tr><td>run-1041</td><td>Three Sigma</td><td>sigma=3</td><td>ds-2026.05.18</td><td><span class="status s-green">completed</span></td><td>0.73</td><td>0.79</td></tr>
-                <tr><td>run-1040</td><td>TSB Bridge</td><td>adapter=v1</td><td>ds-2026.05.03-bad</td><td><span class="status s-red">failed</span></td><td>-</td><td>-</td></tr>
-              </tbody>
-            </table>
-            <div class="actions">
-              <button class="btn primary" type="button" onclick="focusStep(2)">加入批量比较</button>
-              <button class="btn" type="button" onclick="markReviewed()">标记 run 已复核</button>
-              <span class="small" id="review-note">run-1042 等待复核。</span>
-            </div>
+      <section class="page" data-page="Policy">
+        <div class="grid-3">
+          <div class="card">
+            <div class="kicker">Training Cadence</div>
+            <div class="metric">1 day</div>
+            <span class="status s-violet">default</span>
+            <p class="small">每天推进一个 cutoff day。</p>
           </div>
-          <div class="section" data-focus="a-metrics">
-            <h2>Effect Metrics</h2>
-            <div class="bars">
-              <div class="bar"><span>Precision</span><div class="track"><div class="fill good" style="width: 79%"></div></div><strong>0.79</strong></div>
-              <div class="bar"><span>Recall</span><div class="track"><div class="fill good" style="width: 84%"></div></div><strong>0.84</strong></div>
-              <div class="bar"><span>F1</span><div class="track"><div class="fill good" style="width: 81%"></div></div><strong>0.81</strong></div>
-              <div class="bar"><span>PA-F1</span><div class="track"><div class="fill good" style="width: 86%"></div></div><strong>0.86</strong></div>
-              <div class="bar"><span>False Positive</span><div class="track"><div class="fill warn" style="width: 28%"></div></div><strong>12</strong></div>
-              <div class="bar"><span>False Negative</span><div class="track"><div class="fill good" style="width: 16%"></div></div><strong>7</strong></div>
-            </div>
+          <div class="card">
+            <div class="kicker">Auto-Active</div>
+            <div class="metric">latest</div>
+            <span class="status s-violet">default</span>
+            <p class="small">最新训练模型成为下一时间段 active。</p>
           </div>
-        </div>
-      </section>
-
-      <section class="page" data-page="Batch Compare">
-        <div class="journey">
-          <div><strong>页面目标</strong><br>跨算法、参数、数据集找到可靠候选方向。</div>
-          <div><strong>用户动作</strong><br>查看 leaderboard、矩阵和失败组合。</div>
-          <div><strong>核心信息</strong><br>稳定性、退化项、partial_failed 影响。</div>
-          <div><strong>下一步动作</strong><br>进入策略模拟。</div>
-        </div>
-        <div class="section" data-focus="a-batch">
-          <h2>Batch Compare</h2>
-          <table>
-            <thead><tr><th>rank</th><th>配置</th><th>dataset coverage</th><th>状态</th><th>mean PA-F1</th><th>worst PA-F1</th><th>说明</th></tr></thead>
-            <tbody>
-              <tr class="row-active"><td>1</td><td>IQR / window=96</td><td>4/4</td><td><span class="status s-green">completed</span></td><td>0.82</td><td>0.76</td><td>跨窗口最稳定</td></tr>
-              <tr><td>2</td><td>Three Sigma / sigma=3</td><td>4/4</td><td><span class="status s-green">completed</span></td><td>0.76</td><td>0.70</td><td>误报低但召回弱</td></tr>
-              <tr><td>3</td><td>TSB Bridge / adapter=v1</td><td>2/4</td><td><span class="status s-orange">partial_failed</span></td><td>0.80</td><td>failed</td><td>3 个组合失败，需审计</td></tr>
-            </tbody>
-          </table>
-          <div class="actions">
-            <button class="btn primary" type="button" onclick="focusStep(5)">选择 IQR 作为候选方向</button>
-            <button class="btn" type="button" onclick="focusPage('History', 'r-audit')">查看失败组合</button>
-          </div>
-        </div>
-        <div class="grid-2">
-          <div class="section" data-focus="a-baseline">
-            <h2>Active Baseline 对比</h2>
-            <table>
-              <thead><tr><th>指标</th><th>candidate</th><th>active</th><th>delta</th><th>判断</th></tr></thead>
-              <tbody>
-                <tr><td>PA-F1</td><td>0.86</td><td>0.82</td><td>+0.04</td><td><span class="status s-green">improved</span></td></tr>
-                <tr><td>Recall</td><td>0.88</td><td>0.82</td><td>+0.06</td><td><span class="status s-green">improved</span></td></tr>
-                <tr><td>False Positive Rate</td><td>0.09</td><td>0.07</td><td>+0.02</td><td><span class="status s-orange">regression</span></td></tr>
-                <tr><td>Drift</td><td>3.1%</td><td>baseline</td><td>+3.1%</td><td><span class="status s-orange">watch</span></td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="section" data-focus="a-direction">
-            <h2>Candidate Direction</h2>
-            <div class="card">
-              <div class="kicker">胜出方向</div>
-              <div class="metric">IQR / window=96</div>
-              <span class="status s-blue">selected</span>
-              <p class="small">数据窗口：14 天训练 + 1 天评估；seed=42；进入策略模拟前保留 batch-883 与 run-1042 引用。</p>
-            </div>
+          <div class="card">
+            <div class="kicker">Context</div>
+            <div class="metric">frozen</div>
+            <span class="status s-green">ready</span>
+            <p class="small">运行中不随结果变更。</p>
           </div>
         </div>
         <div class="section">
-          <h2>指标矩阵</h2>
-          <div class="matrix">
-            <div class="cell head">算法 / 数据</div><div class="cell head">05.18</div><div class="cell head">05.11</div><div class="cell head">05.03</div><div class="cell head">05.01</div>
-            <div class="cell head">IQR</div><div class="cell hot">0.86</div><div class="cell hot">0.82</div><div class="cell warm">0.76</div><div class="cell hot">0.80</div>
-            <div class="cell head">Three Sigma</div><div class="cell warm">0.79</div><div class="cell warm">0.74</div><div class="cell warm">0.70</div><div class="cell warm">0.72</div>
-            <div class="cell head">TSB Bridge</div><div class="cell hot">0.80</div><div class="cell bad">failed</div><div class="cell warm">0.73</div><div class="cell bad">failed</div>
+          <h2>Future Policy Gates</h2>
+          <table>
+            <thead><tr><th>配置项</th><th>MVP 默认</th><th>后续配置方向</th></tr></thead>
+            <tbody>
+              <tr><td>min_metric_delta</td><td>disabled</td><td>PA-F1 提升门槛</td></tr>
+              <tr><td>max_regression</td><td>disabled</td><td>误报、漏报退化上限</td></tr>
+              <tr><td>min_label_coverage</td><td>90%</td><td>低覆盖分区进入 blocked</td></tr>
+              <tr><td>quality_gate</td><td>90/100</td><td>低质量分区进入 Diagnostics</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="page" data-page="Rolling Experiment">
+        <div class="grid-3">
+          <div class="card">
+            <div class="kicker">Cutoff Day</div>
+            <div class="metric" id="cutoff-day">D1</div>
+            <span class="status s-blue" id="cutoff-date">2026-05-01</span>
+          </div>
+          <div class="card">
+            <div class="kicker">Train / Validate</div>
+            <div class="metric" id="model-id">M_D1</div>
+            <span class="status s-green">completed</span>
+          </div>
+          <div class="card">
+            <div class="kicker">Infer Interval</div>
+            <div class="metric" id="infer-day">D2</div>
+            <span class="status s-green">active hit</span>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="section">
+            <h2>Day Cycle</h2>
+            <table>
+              <thead><tr><th>步骤</th><th>当前值</th><th>说明</th></tr></thead>
+              <tbody id="cycle-table"></tbody>
+            </table>
+            <div class="actions">
+              <button class="btn primary" type="button" onclick="advanceDay()">推进一天</button>
+              <button class="btn" type="button" onclick="showPage('Results')">查看结果</button>
+            </div>
+          </div>
+          <div class="section">
+            <h2>Prediction Ledger Preview</h2>
+            <table>
+              <thead><tr><th>timestamp</th><th>active_model_id</th><th>score</th><th>pred</th><th>label</th></tr></thead>
+              <tbody id="ledger-table"></tbody>
+            </table>
           </div>
         </div>
       </section>
 
-      <section class="page" data-page="Strategy Simulation">
-        <div class="journey">
-          <div><strong>页面目标</strong><br>模拟每日新增数据后的训练、评估与 auto-active 策略。</div>
-          <div><strong>用户动作</strong><br>调整策略阈值，运行下一天 dry-run。</div>
-          <div><strong>核心信息</strong><br>决策、PA-F1 delta、label coverage、active timeline。</div>
-          <div><strong>下一步动作</strong><br>输出 recommendation 或停止复核。</div>
-        </div>
+      <section class="page" data-page="Results">
         <div class="grid-4">
           <div class="card">
-            <div class="kicker">would_promote_count</div>
-            <div class="metric" id="would-count">2</div>
-            <span class="status s-green">simulated</span>
+            <div class="kicker">PA-F1</div>
+            <div class="metric" id="result-pa">0.86</div>
+            <span class="status s-green">best</span>
           </div>
           <div class="card">
-            <div class="kicker">needs_review_count</div>
-            <div class="metric" id="review-count">1</div>
-            <span class="status s-orange">manual gate</span>
+            <div class="kicker">F1</div>
+            <div class="metric" id="result-f1">0.82</div>
+            <span class="status s-green">stable</span>
           </div>
           <div class="card">
-            <div class="kicker">blocked_count</div>
-            <div class="metric" id="blocked-count">0</div>
-            <span class="status s-violet">policy checked</span>
+            <div class="kicker">Auto Active</div>
+            <div class="metric" id="result-switches">6</div>
+            <span class="status s-violet">switches</span>
           </div>
           <div class="card">
-            <div class="kicker">active timeline</div>
-            <div class="metric" id="timeline-state">2 switches</div>
-            <span class="status s-blue">dry-run only</span>
+            <div class="kicker">Blocked</div>
+            <div class="metric">1</div>
+            <span class="status s-orange">day</span>
           </div>
-        </div>
-
-        <div class="grid-2">
-          <div class="section" data-focus="b-policy">
-            <h2>Effect Metrics + Policy</h2>
-            <div class="policy-panel">
-              <div class="policy-box"><strong>min PA-F1 delta</strong><br><span id="policy-delta">+0.03</span></div>
-              <div class="policy-box"><strong>max FP regression</strong><br><span id="policy-fp">+0.01</span></div>
-              <div class="policy-box"><strong>min label coverage</strong><br><span>90%</span></div>
-              <div class="policy-box"><strong>data quality gate</strong><br><span>90 / 100</span></div>
-            </div>
-            <div class="actions">
-              <button class="btn violet" type="button" onclick="simulateNextDay()">模拟下一天新增数据</button>
-              <button class="btn" type="button" onclick="togglePolicyMode()">切换 strict / balanced</button>
-              <span class="small" id="policy-mode-note">当前策略：balanced。</span>
-            </div>
-          </div>
-          <div class="section" data-focus="b-gate">
-            <h2>Policy Decision</h2>
-            <div class="card">
-              <div class="kicker">当前模拟决策</div>
-              <div class="metric" id="decision-title">needs_review</div>
-              <span class="status s-orange" id="decision-chip">manual review</span>
-              <p class="small" id="decision-reason">PA-F1 +0.04 通过，但 FP regression +0.02 超出 balanced 复核阈值。</p>
-            </div>
-            <div class="callout">策略模拟只输出 recommendation，不自动修改真实 active pointer。</div>
-          </div>
-        </div>
-
-        <div class="section" data-focus="b-report">
-          <h2>Daily Simulation Report</h2>
-          <table>
-            <thead><tr><th>day</th><th>dataset</th><th>candidate config</th><th>PA-F1 delta</th><th>FP regression</th><th>label coverage</th><th>decision</th><th>reason</th></tr></thead>
-            <tbody id="simulation-table">
-              <tr><td>2026-05-18</td><td>ds-2026.05.18</td><td>IQR / window=96</td><td>+0.04</td><td>+0.01</td><td>100%</td><td><span class="status s-green">would_promote</span></td><td>提升稳定</td></tr>
-              <tr><td>2026-05-19</td><td>ds-2026.05.19</td><td>IQR / window=96</td><td>+0.04</td><td>+0.02</td><td>96%</td><td><span class="status s-orange">needs_review</span></td><td>误报退化需复核</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="grid-2">
-          <div class="section" data-focus="b-report">
-            <h2>Active Timeline</h2>
-            <div class="timeline" id="active-timeline">
-              <div class="event green"><strong>05-18 would_promote</strong><br><span class="small">dry-run: active would move model-2026.05.18 -> candidate-c1</span></div>
-              <div class="event warn"><strong>05-19 needs_review</strong><br><span class="small">真实 active pointer 保持 model-2026.05.18。</span></div>
-            </div>
-          </div>
-          <div class="section" data-focus="b-recommend">
-            <h2>Recommendation</h2>
-            <div class="card">
-              <div class="kicker">winning config</div>
-              <div class="metric">IQR / window=96</div>
-              <span class="status s-blue">ready for main flow</span>
-              <p class="small">推荐进入 Continuous Learning，但 promotion 仍必须经过 evidence review 与 manual promotion。</p>
-            </div>
-            <div class="actions">
-              <button class="btn primary" type="button" onclick="focusStep(7)">Use winning config</button>
-              <button class="btn" type="button" onclick="focusPage('History', 'r-audit')">打开模拟报告审计</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="page" data-page="Continuous Learning">
-        <div class="journey">
-          <div><strong>页面目标</strong><br>说明 winning config 如何承接为模型生命周期主流程。</div>
-          <div><strong>用户动作</strong><br>查看 train job、artifact、model version 和 active pointer。</div>
-          <div><strong>核心信息</strong><br>复现配置、artifact checksum、candidate 状态。</div>
-          <div><strong>下一步动作</strong><br>进入 evidence review。</div>
-        </div>
-        <div class="section">
-          <h2>Winning Config -> Active Model Pointer</h2>
-          <div class="node-row">
-            <button class="node" type="button" data-step="7" data-node="m-config"><span class="status s-blue">winning</span><strong>Winning Config</strong><span>IQR / window=96</span></button>
-            <button class="node" type="button" data-step="7" data-node="m-train"><span class="status s-green">completed</span><strong>Train Job</strong><span>job-20260519-01</span></button>
-            <button class="node green" type="button" data-step="7" data-node="m-artifact"><span class="status s-green">artifact</span><strong>Model Artifact</strong><span>artifact-model-c1</span></button>
-            <button class="node blue" type="button" data-step="7" data-node="m-version"><span class="status s-blue">candidate</span><strong>Model Version</strong><span>model-2026.05.19-c1</span></button>
-            <button class="node" type="button" data-step="7" data-node="m-evidence"><span class="status s-orange">needs_review</span><strong>Evidence Review</strong><span>FP regression</span></button>
-            <button class="node" type="button" data-step="7" data-node="m-promote"><span class="status s-orange">pending</span><strong>Manual Promotion</strong><span>operator.demo</span></button>
-            <button class="node green last" type="button" data-step="7" data-node="m-active"><span class="status s-green">active</span><strong>Active Pointer</strong><span>model-2026.05.18</span></button>
-          </div>
-        </div>
-        <div class="grid-3">
-          <div class="section" data-focus="m-config"><h2>Winning Config</h2><p>algorithm: IQR<br>params: window=96, contamination=0.04<br>seed: 42<br>source: batch-883 + sim-20260519</p></div>
-          <div class="section" data-focus="m-train"><h2>Train Job</h2><p>input: ds-2026.05.18<br>status: completed<br>output: artifact-model-c1</p></div>
-          <div class="section" data-focus="m-artifact"><h2>Model Artifact</h2><p>path: runs/job-20260519-01/model.pkl<br>checksum: sha256:9f31...c2a<br>schema: table-v1</p></div>
-        </div>
-      </section>
-
-      <section class="page" data-page="Models">
-        <div class="journey">
-          <div><strong>页面目标</strong><br>回答 candidate 为什么可以或不可以晋级。</div>
-          <div><strong>用户动作</strong><br>比较 candidate 与 active，检查退化与证据完整度。</div>
-          <div><strong>核心信息</strong><br>数据版本、评估模式、指标差异、artifact、审计。</div>
-          <div><strong>下一步动作</strong><br>manual promotion 或 request review。</div>
         </div>
         <div class="grid-2">
-          <div class="section" data-focus="m-evidence">
-            <h2>Candidate vs Active</h2>
-            <div class="bars">
-              <div class="bar"><span>PA-F1</span><div class="track"><div class="fill good" style="width: 86%"></div></div><strong>+0.04</strong></div>
-              <div class="bar"><span>Recall</span><div class="track"><div class="fill good" style="width: 88%"></div></div><strong>+0.06</strong></div>
-              <div class="bar"><span>Precision</span><div class="track"><div class="fill good" style="width: 79%"></div></div><strong>+0.01</strong></div>
-              <div class="bar"><span>False Positive</span><div class="track"><div class="fill warn" style="width: 58%"></div></div><strong>+0.02</strong></div>
-            </div>
-          </div>
-          <div class="section" data-focus="m-promote">
-            <h2>Manual Promotion</h2>
-            <div class="callout">Promote disabled: false positive regression 需要人工确认。策略模拟的 would_promote 只作为建议，不等于自动上线。</div>
-            <div class="actions">
-              <button class="btn" type="button" disabled>Promote disabled</button>
-              <button class="btn primary" type="button" onclick="focusPage('History', 'r-audit')">生成 pending_review 审计</button>
-            </div>
-          </div>
-        </div>
-        <div class="section">
-          <h2>Evidence Panel</h2>
-          <div class="evidence">
-            <div class="evidence-item"><h3>训练数据版本</h3><p>ds-2026.05.18 <span class="status s-green">validated</span></p></div>
-            <div class="evidence-item"><h3>评估数据版本</h3><p>holdout-05.19 <span class="status s-green">validated</span></p></div>
-            <div class="evidence-item"><h3>回测窗口</h3><p>7 day rolling backtest <span class="status s-orange">needs_review</span></p></div>
-            <div class="evidence-item"><h3>标签覆盖率</h3><p>label coverage 96% <span class="status s-green">labeled</span></p></div>
-            <div class="evidence-item"><h3>策略模拟报告</h3><p>sim-20260519，would_promote=2，needs_review=1，blocked=0。</p></div>
-            <div class="evidence-item"><h3>退化项</h3><p><span class="status s-orange">warning</span> False Positive +0.02。</p></div>
-            <div class="evidence-item"><h3>数据质量</h3><p>quality score 96/100，drift 3.1%。</p></div>
-            <div class="evidence-item"><h3>模型 Artifact</h3><p>artifact_id: artifact-model-c1<br>checksum: sha256:9f31...c2a</p></div>
-            <div class="evidence-item"><h3>复现字段</h3><p>algorithm: IQR<br>params: window=96<br>seed: 42<br>run_id: run-1042</p></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="page" data-page="History">
-        <div class="journey">
-          <div><strong>页面目标</strong><br>统一追溯实验、策略模拟、训练、晋级和回滚。</div>
-          <div><strong>用户动作</strong><br>按对象过滤，回到证据链。</div>
-          <div><strong>核心信息</strong><br>event_id、subject、actor、reason、related refs。</div>
-          <div><strong>下一步动作</strong><br>回到 Models 或 Strategy Simulation。</div>
-        </div>
-        <div class="grid-2">
-          <div class="section" data-focus="r-audit">
-            <h2>Audit Trail</h2>
+          <div class="section">
+            <h2>Algorithm Ranking</h2>
             <table>
-              <thead><tr><th>event_id</th><th>event_type</th><th>subject</th><th>actor</th><th>reason</th><th>related refs</th></tr></thead>
-              <tbody>
-                <tr class="row-active"><td>evt-901</td><td><span class="status s-orange">pending_review</span></td><td>model-2026.05.19-c1</td><td>operator.demo</td><td>FP regression 需确认</td><td>sim-20260519, job-20260519-01</td></tr>
-                <tr><td>evt-900</td><td><span class="status s-green">train_completed</span></td><td>job-20260519-01</td><td>system</td><td>winning config trained</td><td>ds-2026.05.18, artifact-model-c1</td></tr>
-                <tr><td>evt-899</td><td><span class="status s-violet">simulation_report</span></td><td>sim-20260519</td><td>system</td><td>dry-run auto-active policy</td><td>batch-883, active timeline</td></tr>
-                <tr><td>evt-898</td><td><span class="status s-orange">partial_failed</span></td><td>batch-883</td><td>system</td><td>TSB Bridge 3 个组合失败</td><td>errors.json</td></tr>
-                <tr><td>evt-880</td><td><span class="status s-gray">rolled_back</span></td><td>rollback-20260518</td><td>operator.demo</td><td>演示回滚记录</td><td>previous-model.pkl</td></tr>
-              </tbody>
+              <thead><tr><th>rank</th><th>algorithm</th><th>params</th><th>PA-F1</th><th>F1</th><th>blocked</th></tr></thead>
+              <tbody id="ranking-table"></tbody>
             </table>
           </div>
-          <div class="section" data-focus="r-event">
-            <h2>Rollback Path</h2>
-            <div class="timeline">
-              <div class="event warn"><strong>Rollback Event</strong><br><span class="small">source: model-2026.05.11，target: model-2026.05.18。</span></div>
-              <div class="event green" data-focus="r-restore"><strong>Restore Active Pointer</strong><br><span class="small">只更新模型注册表 active pointer，不代表在线发布系统。</span></div>
-              <div class="event" data-focus="r-audit"><strong>Audit Trail</strong><br><span class="small">记录 actor、reason、previous / target model 与 refs。</span></div>
+          <div class="section">
+            <h2>Metric Trend</h2>
+            <div class="bars">
+              <div class="bar"><span>Precision</span><div class="track"><div class="fill good" style="width: 82%"></div></div><strong>0.82</strong></div>
+              <div class="bar"><span>Recall</span><div class="track"><div class="fill good" style="width: 84%"></div></div><strong>0.84</strong></div>
+              <div class="bar"><span>PA-F1</span><div class="track"><div class="fill good" style="width: 86%"></div></div><strong>0.86</strong></div>
+              <div class="bar"><span>FP</span><div class="track"><div class="fill warn" style="width: 24%"></div></div><strong>11</strong></div>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="page" data-page="Settings">
-        <div class="journey">
-          <div><strong>页面目标</strong><br>承载只读演示配置。</div>
-          <div><strong>用户动作</strong><br>查看策略阈值与治理占位。</div>
-          <div><strong>核心信息</strong><br>retention、audit、future auth。</div>
-          <div><strong>下一步动作</strong><br>无主线动作。</div>
-        </div>
+      <section class="page" data-page="Diagnostics">
         <div class="section">
-          <h2>Readonly Settings</h2>
+          <h2>Blocked / Partial Failed</h2>
           <table>
-            <thead><tr><th>配置</th><th>值</th><th>状态</th><th>说明</th></tr></thead>
+            <thead><tr><th>对象</th><th>状态</th><th>原因</th><th>是否进入指标</th></tr></thead>
             <tbody>
-              <tr><td>Simulation mode</td><td>dry-run / backtest / recommendation</td><td><span class="status s-violet">M2</span></td><td>不自动修改真实 active pointer</td></tr>
-              <tr><td>Promotion mode</td><td>manual promotion</td><td><span class="status s-orange">review</span></td><td>证据充分后人工触发</td></tr>
-              <tr><td>Artifact retention</td><td>30 days</td><td><span class="status s-gray">placeholder</span></td><td>后续实现可配置</td></tr>
-              <tr><td>Governance</td><td>audit first</td><td><span class="status s-gray">future</span></td><td>权限与审批流不属于当前原型</td></tr>
+              <tr><td>D5 / TSB Bridge</td><td><span class="status s-orange">partial_failed</span></td><td>adapter timeout</td><td>否</td></tr>
+              <tr><td>D6 partition</td><td><span class="status s-orange">low_label_coverage</span></td><td>label coverage 82%</td><td>不参与自动 active 统计</td></tr>
+              <tr><td>D1 initial interval</td><td><span class="status s-green">covered</span></td><td>initial_model 覆盖第一个推理区间</td><td>是</td></tr>
             </tbody>
           </table>
+        </div>
+        <div class="callout">
+          缺少 active model 覆盖的时间段必须标记 blocked，不能静默跳过；低 label coverage 的分区可以保留诊断，但不能作为自动 active 策略依据。
         </div>
       </section>
     </main>
@@ -1233,279 +694,154 @@
 
   <script>
     const pages = [
-      ["Overview", "与 drawio 对齐的三条主泳道：数据实验、策略模拟、主流程承接。"],
-      ["Data", "选择 dataset version、daily partition 与可用于实验评估的数据窗口。"],
-      ["Experiments", "解释单算法实验的输入、参数、指标与 artifact。"],
-      ["Batch Compare", "跨数据集、算法和参数形成稳定候选方向。"],
-      ["Strategy Simulation", "对每日新增数据进行离线策略模拟，输出决策与效果指标。"],
-      ["Continuous Learning", "把 winning config 承接为 train job、model artifact 和 model version。"],
-      ["Models", "比较 candidate 与 active，决定 manual promotion 或继续复核。"],
-      ["History", "追溯实验、模拟、训练、晋级和回滚事件。"],
-      ["Settings", "只读展示演示配置与治理占位。"]
+      ["Overview", "导入多天数据后，按日滚动训练、自动 active、推理并汇总算法效果。"],
+      ["Data", "查看 dataset version、schema、quality 与 day partitions。"],
+      ["Policy", "实验前冻结训练周期和 auto-active 策略。"],
+      ["Rolling Experiment", "按 cutoff day 回放训练、验证、active 更新和推理。"],
+      ["Results", "比较算法/参数组合的多日推理效果。"],
+      ["Diagnostics", "查看 blocked、partial_failed 和低覆盖分区。"]
     ];
 
-    const steps = [
-      {
-        page: "Overview",
-        label: "数据选择",
-        title: "选择可评估的数据版本",
-        detail: "ds-2026.05.18 已 validated，label coverage 100%，可作为实验与策略模拟的证据来源。",
-        focus: "a-data",
-        object: "ds-2026.05.18 / Checkout API latency"
-      },
-      {
-        page: "Experiments",
-        label: "单实验",
-        title: "解释单个算法行为",
-        detail: "run-1042 使用 IQR/window=96 完成，F1 0.81，PA-F1 0.86。",
-        focus: "a-exp",
-        object: "run-1042 / IQR"
-      },
-      {
-        page: "Batch Compare",
-        label: "批量比较",
-        title: "比较算法、参数和数据集",
-        detail: "batch-883 保留 partial_failed 影响，同时显示 IQR 在多个窗口上最稳定。",
-        focus: "a-batch",
-        object: "batch-883"
-      },
-      {
-        page: "Experiments",
-        label: "效果指标",
-        title: "校验 F1、PA-F1 与误报漏报",
-        detail: "效果指标必须包含单次效果和跨数据集稳定性，不能只看一次最高分。",
-        focus: "a-metrics",
-        object: "F1 / PA-F1 / FP / FN"
-      },
-      {
-        page: "Batch Compare",
-        label: "基线对比",
-        title: "对比当前 active baseline",
-        detail: "candidate 相比 active PA-F1 +0.04，Recall +0.06，但 False Positive +0.02。",
-        focus: "a-baseline",
-        object: "model-2026.05.18 active"
-      },
-      {
-        page: "Batch Compare",
-        label: "候选方向",
-        title: "形成 candidate direction",
-        detail: "选择 IQR/window=96 作为候选方向，带着 run、batch 和 artifact refs 进入策略模拟。",
-        focus: "a-direction",
-        object: "IQR / window=96"
-      },
-      {
-        page: "Strategy Simulation",
-        label: "策略模拟",
-        title: "离线模拟每日新增数据",
-        detail: "dry-run / backtest 输出 would_promote、needs_review、blocked、active timeline 和指标 delta。",
-        focus: "b-gate",
-        object: "sim-20260519"
-      },
-      {
-        page: "Continuous Learning",
-        label: "主流程承接",
-        title: "winning config 进入模型生命周期",
-        detail: "winning config 生成 train job、model artifact、candidate model，再由 evidence review 决定 manual promotion。",
-        focus: "m-config",
-        object: "model-2026.05.19-c1"
-      },
-      {
-        page: "History",
-        label: "审计回滚",
-        title: "追溯晋级与回滚",
-        detail: "History 保留 simulation_report、train_completed、pending_review 和 rollback 事件。",
-        focus: "r-audit",
-        object: "evt-901 / sim-20260519"
-      }
+    const days = [
+      { id: "D1", date: "2026-05-01", rows: 1440, coverage: "98%", quality: 97 },
+      { id: "D2", date: "2026-05-02", rows: 1440, coverage: "97%", quality: 96 },
+      { id: "D3", date: "2026-05-03", rows: 1440, coverage: "95%", quality: 94 },
+      { id: "D4", date: "2026-05-04", rows: 1440, coverage: "96%", quality: 95 },
+      { id: "D5", date: "2026-05-05", rows: 1440, coverage: "94%", quality: 92 },
+      { id: "D6", date: "2026-05-06", rows: 1440, coverage: "82%", quality: 89 },
+      { id: "D7", date: "2026-05-07", rows: 1440, coverage: "96%", quality: 95 }
     ];
 
-    const simulations = [
-      {
-        day: "2026-05-20",
-        dataset: "ds-2026.05.20",
-        delta: "+0.05",
-        fp: "+0.01",
-        label: "94%",
-        decision: "would_promote",
-        reason: "指标提升且退化在阈值内"
-      },
-      {
-        day: "2026-05-21",
-        dataset: "ds-2026.05.21",
-        delta: "+0.01",
-        fp: "+0.03",
-        label: "89%",
-        decision: "blocked",
-        reason: "label coverage 低于 90%，且误报退化"
-      },
-      {
-        day: "2026-05-22",
-        dataset: "ds-2026.05.22",
-        delta: "+0.03",
-        fp: "+0.02",
-        label: "97%",
-        decision: "needs_review",
-        reason: "达到提升阈值，但误报需要人工确认"
-      }
-    ];
+    const algorithms = {
+      iqr: { name: "IQR", params: "window=96", pa: 0.86, f1: 0.82, blocked: 1 },
+      sigma: { name: "Three Sigma", params: "sigma=3", pa: 0.79, f1: 0.75, blocked: 1 },
+      tsb: { name: "TSB Bridge", params: "adapter=v1", pa: 0.80, f1: 0.76, blocked: 3 }
+    };
 
-    let currentStep = 0;
-    let simulationIndex = 0;
-    let policyStrict = false;
-    const counts = { would_promote: 2, needs_review: 1, blocked: 0 };
+    let currentPage = "Overview";
+    let currentDayIndex = 0;
+    let currentAlgorithm = "iqr";
 
     const nav = document.getElementById("nav");
-    const strip = document.getElementById("step-strip");
+    const flow = document.getElementById("flow");
 
-    pages.forEach(([name, subtitle]) => {
+    pages.forEach(([name]) => {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = name;
       button.dataset.target = name;
-      button.addEventListener("click", () => focusPage(name));
+      button.addEventListener("click", () => showPage(name));
       nav.appendChild(button);
+
+      const step = document.createElement("button");
+      step.type = "button";
+      step.className = "step";
+      step.dataset.target = name;
+      step.innerHTML = `<strong>${name}</strong><span class="small">${name === "Rolling Experiment" ? "Train -> Active -> Infer" : ""}</span>`;
+      step.addEventListener("click", () => showPage(name));
+      flow.appendChild(step);
     });
 
-    steps.forEach((step, index) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "step";
-      button.innerHTML = `<strong>${index + 1}. ${step.label}</strong><span>${step.page}</span>`;
-      button.addEventListener("click", () => focusStep(index));
-      strip.appendChild(button);
+    document.getElementById("algorithm-select").addEventListener("change", (event) => {
+      currentAlgorithm = event.target.value;
+      render();
     });
 
-    document.querySelectorAll("[data-step]").forEach((node) => {
-      node.addEventListener("click", () => focusStep(Number(node.dataset.step)));
-    });
-
-    document.getElementById("prev-step").addEventListener("click", () => focusStep(Math.max(0, currentStep - 1)));
-
-    function focusPage(name, focus) {
+    function showPage(name) {
+      currentPage = name;
       const meta = pages.find((page) => page[0] === name) || pages[0];
       document.getElementById("page-title").textContent = meta[0];
       document.getElementById("page-subtitle").textContent = meta[1];
-
       document.querySelectorAll(".page").forEach((page) => {
-        page.classList.toggle("active", page.dataset.page === meta[0]);
+        page.classList.toggle("active", page.dataset.page === name);
       });
-
-      document.querySelectorAll(".nav button").forEach((button) => {
-        button.classList.toggle("active", button.dataset.target === meta[0]);
+      document.querySelectorAll(".nav button, .step").forEach((button) => {
+        button.classList.toggle("active", button.dataset.target === name);
       });
+    }
 
-      if (focus) {
-        highlightFocus(focus);
+    function setDay(index) {
+      currentDayIndex = Math.max(0, Math.min(days.length - 2, index));
+      render();
+    }
+
+    function advanceDay() {
+      currentDayIndex = currentDayIndex >= days.length - 2 ? 0 : currentDayIndex + 1;
+      showPage("Rolling Experiment");
+      render();
+    }
+
+    function modelId(index) {
+      return `M_${days[index].date.slice(5).replace("-", "")}`;
+    }
+
+    function renderPartitions() {
+      const tbody = document.getElementById("partition-table");
+      tbody.innerHTML = days.map((day, index) => {
+        const isLow = Number(day.coverage.replace("%", "")) < 90;
+        const status = isLow ? `<span class="status s-orange">low_label_coverage</span>` : `<span class="status s-green">valid</span>`;
+        return `<tr class="${index === currentDayIndex ? "active-row" : ""}"><td>${day.id}<br><span class="small">${day.date}</span></td><td>${day.rows}</td><td>${day.coverage}</td><td>${status}</td></tr>`;
+      }).join("");
+    }
+
+    function renderTimeline() {
+      const rows = [];
+      rows.push(`<tr><td>initial_model</td><td>(-inf, ${days[0].id}]</td><td>${days[0].id}</td></tr>`);
+      for (let i = 0; i < days.length - 1; i += 1) {
+        rows.push(`<tr class="${i === currentDayIndex ? "active-row" : ""}"><td>${modelId(i)}</td><td>(${days[i].id}, ${days[i + 1].id}]</td><td>${days[i + 1].id}</td></tr>`);
       }
+      document.getElementById("active-timeline").innerHTML = rows.join("");
     }
 
-    function focusStep(index, shouldScroll = true) {
-      currentStep = Math.max(0, Math.min(steps.length - 1, index));
-      const step = steps[currentStep];
-      focusPage(step.page);
-      document.getElementById("focus-title").textContent = step.title;
-      document.getElementById("focus-detail").textContent = step.detail;
-      document.getElementById("focus-object").textContent = step.object;
+    function renderCycle() {
+      const day = days[currentDayIndex];
+      const next = days[currentDayIndex + 1];
+      const alg = algorithms[currentAlgorithm];
+      document.getElementById("cutoff-day").textContent = day.id;
+      document.getElementById("cutoff-date").textContent = day.date;
+      document.getElementById("model-id").textContent = modelId(currentDayIndex);
+      document.getElementById("infer-day").textContent = next.id;
+      document.getElementById("overview-cutoff").textContent = day.id;
+      document.getElementById("overview-active").textContent = `${modelId(currentDayIndex)} active for ${next.id}`;
+      document.getElementById("scenario-text").textContent = `${alg.name} ${alg.params}：用 <= ${day.id} 的数据训练 ${modelId(currentDayIndex)}，并对 ${next.id} 推理。`;
 
-      document.querySelectorAll(".step").forEach((button, buttonIndex) => {
-        button.classList.toggle("active", buttonIndex === currentStep);
-        button.classList.toggle("done", buttonIndex < currentStep);
-      });
+      document.getElementById("cycle-table").innerHTML = [
+        ["cutoff day", `${day.id} / ${day.date}`, "当前滚动循环日"],
+        ["train data", `<= ${day.id}`, "训练集与验证集来自截止日之前的数据"],
+        ["model", modelId(currentDayIndex), `${alg.name} ${alg.params}`],
+        ["active interval", `(${day.id}, ${next.id}]`, "下一次训练前使用该 active 模型"],
+        ["inference rows", `${next.rows}`, `${next.id} 的样本按 active interval 命中模型`]
+      ].map((row) => `<tr><td>${row[0]}</td><td>${row[1]}</td><td>${row[2]}</td></tr>`).join("");
 
-      highlightFocus(step.focus, shouldScroll);
-      document.getElementById("prev-step").disabled = currentStep === 0;
-      document.getElementById("next-step").textContent = currentStep === steps.length - 1 ? "回到开头" : "下一步";
-
-      if (currentStep === steps.length - 1) {
-        document.getElementById("next-step").onclick = () => focusStep(0);
-      } else {
-        document.getElementById("next-step").onclick = () => focusStep(currentStep + 1);
-      }
+      document.getElementById("ledger-table").innerHTML = [0, 1, 2, 3].map((offset) => {
+        const score = (0.62 + offset * 0.08 + currentDayIndex * 0.01).toFixed(2);
+        const pred = Number(score) > 0.74 ? 1 : 0;
+        const label = offset === 2 ? 1 : pred;
+        return `<tr><td>${next.date} ${String(offset * 6).padStart(2, "0")}:00</td><td>${modelId(currentDayIndex)}</td><td>${score}</td><td>${pred}</td><td>${label}</td></tr>`;
+      }).join("");
     }
 
-    function highlightFocus(focus, shouldScroll = true) {
-      document.querySelectorAll("[data-focus], [data-node]").forEach((node) => {
-        const nodeFocus = node.dataset.focus || node.dataset.node;
-        node.classList.toggle("highlight", nodeFocus === focus);
-        node.classList.toggle("active", nodeFocus === focus);
-      });
-
-      if (shouldScroll) {
-        const target = document.querySelector(`[data-focus="${focus}"], [data-node="${focus}"]`);
-        if (target) {
-          window.setTimeout(() => target.scrollIntoView({ behavior: "smooth", block: "center" }), 40);
-        }
-      }
+    function renderRanking() {
+      const ranking = Object.values(algorithms).sort((a, b) => b.pa - a.pa);
+      document.getElementById("ranking-table").innerHTML = ranking.map((alg, index) => {
+        const state = index === 0 ? `<span class="status s-green">candidate_config</span>` : `<span class="status s-gray">compared</span>`;
+        return `<tr><td>${index + 1}</td><td>${alg.name}<br>${state}</td><td>${alg.params}</td><td>${alg.pa.toFixed(2)}</td><td>${alg.f1.toFixed(2)}</td><td>${alg.blocked}</td></tr>`;
+      }).join("");
+      const selected = algorithms[currentAlgorithm];
+      document.getElementById("result-pa").textContent = selected.pa.toFixed(2);
+      document.getElementById("result-f1").textContent = selected.f1.toFixed(2);
+      document.getElementById("result-switches").textContent = days.length - 1;
     }
 
-    function decisionStatus(decision) {
-      if (decision === "would_promote") {
-        return ["s-green", "would_promote"];
-      }
-      if (decision === "blocked") {
-        return ["s-red", "blocked"];
-      }
-      return ["s-orange", "needs_review"];
+    function render() {
+      renderPartitions();
+      renderTimeline();
+      renderCycle();
+      renderRanking();
+      showPage(currentPage);
     }
 
-    function simulateNextDay() {
-      const item = simulations[simulationIndex % simulations.length];
-      simulationIndex += 1;
-      counts[item.decision] += 1;
-
-      const [statusClass, label] = decisionStatus(item.decision);
-      const row = document.createElement("tr");
-      row.className = "row-active";
-      row.innerHTML = `<td>${item.day}</td><td>${item.dataset}</td><td>IQR / window=96</td><td>${item.delta}</td><td>${item.fp}</td><td>${item.label}</td><td><span class="status ${statusClass}">${label}</span></td><td>${item.reason}</td>`;
-      document.querySelectorAll("#simulation-table tr").forEach((tr) => tr.classList.remove("row-active"));
-      document.getElementById("simulation-table").appendChild(row);
-
-      const event = document.createElement("div");
-      event.className = `event ${item.decision === "would_promote" ? "green" : item.decision === "blocked" ? "fail" : "warn"}`;
-      event.innerHTML = `<strong>${item.day} ${label}</strong><br><span class="small">${item.reason}；真实 active pointer 不自动变化。</span>`;
-      document.getElementById("active-timeline").appendChild(event);
-
-      document.getElementById("would-count").textContent = counts.would_promote;
-      document.getElementById("review-count").textContent = counts.needs_review;
-      document.getElementById("blocked-count").textContent = counts.blocked;
-      document.getElementById("timeline-state").textContent = `${counts.would_promote} switches`;
-
-      updateDecision(item.decision, item.reason);
-      document.getElementById("daily-dataset-state").textContent = "validated";
-      document.getElementById("daily-dataset-state").className = "status s-green";
-      document.getElementById("daily-label").textContent = item.label;
-      document.getElementById("daily-quality").textContent = item.reason;
-      document.getElementById("daily-usage").textContent = "已进入 dry-run";
-      focusStep(6);
-    }
-
-    function updateDecision(decision, reason) {
-      const [statusClass, label] = decisionStatus(decision);
-      document.getElementById("policy-decision-chip").className = `status ${statusClass}`;
-      document.getElementById("policy-decision-chip").textContent = label;
-      document.getElementById("policy-decision-text").textContent = reason;
-      document.getElementById("decision-title").textContent = label;
-      document.getElementById("decision-chip").className = `status ${statusClass}`;
-      document.getElementById("decision-chip").textContent = decision === "would_promote" ? "recommend" : decision;
-      document.getElementById("decision-reason").textContent = reason;
-    }
-
-    function togglePolicyMode() {
-      policyStrict = !policyStrict;
-      document.getElementById("policy-delta").textContent = policyStrict ? "+0.05" : "+0.03";
-      document.getElementById("policy-fp").textContent = policyStrict ? "+0.00" : "+0.01";
-      document.getElementById("policy-mode-note").textContent = `当前策略：${policyStrict ? "strict" : "balanced"}。`;
-      updateDecision(policyStrict ? "blocked" : "needs_review", policyStrict ? "strict 策略下 FP regression 不允许增加。" : "PA-F1 +0.04 通过，但 FP regression +0.02 需要复核。");
-      focusStep(6);
-    }
-
-    function markReviewed() {
-      const note = document.getElementById("review-note");
-      note.textContent = "run-1042 已复核：可进入 batch compare。";
-      note.className = "status s-green";
-    }
-
-    focusStep(0, false);
+    render();
   </script>
 </body>
 </html>

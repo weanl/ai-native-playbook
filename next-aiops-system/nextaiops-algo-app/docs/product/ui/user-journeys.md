@@ -1,306 +1,156 @@
-# M2-024 用户旅程
+# M2-024 MVP 用户旅程
 
 ## 目标
 
-本设计面向 M2 持续学习与模型生命周期管理工作台，目标是让客户能沿着一条清晰主线理解平台：
+本阶段用户旅程聚焦一个 MVP 问题：
 
 ```text
-模型从哪些数据学习 -> 学到了什么 -> 为什么候选模型可以晋级为 active -> 生效后如何追溯与回滚
+一次导入多天数据后，平台如何按日滚动训练模型、自动切换实验 active 模型、对后续时间段推理，并比较不同算法效果？
 ```
 
-本文只定义产品旅程与演示叙事，不定义后端 schema，不实现业务逻辑。
+本文只定义产品旅程和原型叙事，不定义后端 schema，不实现生产模型生命周期。
 
-## 术语边界
-
-M2-024 文档中如出现“上线 / 生效”，只表示模型版本在模型注册与生命周期管理中被标记为 `active` 或完成 `promoted` 事件。
-
-这不代表 M2 要实现在线推理服务、生产流量切换、多租户权限或发布系统。相关能力仍属于 M2 范围外或后续 proposal。
-
-## 用户角色
+## 角色
 
 ### 平台评估者
 
 关注点：
 
-- 平台是否能解释持续学习闭环，而不是只展示一次性实验结果。
-- 数据、实验、训练、模型版本、晋级事件之间是否可追溯。
-- 候选模型晋级为 `active` 前是否有足够证据支撑。
-
-典型问题：
-
-- 这个模型用的是哪一版数据？
-- 新模型相比当前 active model 提升在哪里，退化在哪里？
-- 如果生效后效果不好，能不能定位原因并回滚？
-
-### AIOps 运维人员
-
-关注点：
-
-- 当前 active model 是否健康。
-- 最近训练任务、批量实验、模型晋级是否成功。
-- 失败或部分失败时应先看哪里。
-
-典型问题：
-
-- 当前系统正在训练什么？
-- 哪个数据版本质量有问题？
-- 候选模型是否可以晋级，还是需要人工复核？
+- 是否能从导入数据跑完端到端算法实验。
+- 是否能解释多天数据上的训练、active、推理循环。
+- 是否能公平比较不同算法效果。
 
 ### 算法工程师
 
 关注点：
 
-- 算法表现如何随数据版本变化。
-- 候选模型的评估证据是否完整。
-- artifact、指标、可视化和历史记录是否能支持复盘。
+- 每个算法/参数组合在不同日期的指标变化。
+- 训练集、验证集、推理区间是否清楚。
+- 推理结果使用的是哪个时间段的 active 模型。
 
-典型问题：
+### AIOps 运维人员
 
-- 这次训练相对上次是否因为数据漂移导致变化？
-- 哪些指标提升，哪些指标退化？
-- 失败任务的输入、参数和 artifact 在哪里？
+关注点：
 
-## 客户演示主线
+- 默认策略是否可理解：一天一训、最新模型自动 active。
+- 哪些日期或算法组合被 blocked。
+- 哪个算法配置更适合进入后续主流程。
 
-### 1. Overview：先回答“现在系统怎么样”
+## MVP 演示主线
 
-演示目标：
-
-- 以 drawio 同构的流程板展示当前 M2 的真实重心：先做数据实验与策略模拟，再承接模型生命周期主流程。
-- 展示 active baseline、candidate direction、strategy simulation recommendation、winning config 和 active pointer 的关系。
-- 告诉客户平台不是孤立页面，而是围绕“实验优先闭环 + 策略模拟闭环 + 后续主流程承接”组织。
-
-关键叙事：
-
-- 当前阶段优先回答不同数据集、算法、参数和策略是否足够可靠。
-- `Strategy Simulation` 是一级闭环，不是 `Continuous Learning` 的附属说明。
-- `would_promote` 只表示离线推荐，不代表真实 active pointer 自动变化。
-- 主流程只承接 winning config，并通过 evidence review 与 manual promotion 控制风险。
-
-下一步动作：
-
-- 从 Dataset Selection 进入 `Data`。
-- 从 Candidate Direction 进入 `Strategy Simulation`。
-- 从 Recommendation 进入 `Continuous Learning`。
-- 从 Evidence Review 或 Audit Trail 进入 `Models` / `History`。
-
-### 2. Data：回答“模型从哪些数据学习”
+### 1. Data：导入多天数据
 
 演示目标：
 
-- 展示 dataset version、schema、fingerprint、数据质量摘要。
-- 解释训练、评估和回测窗口来自哪些数据版本。
+- 展示一次导入包含多天数据。
+- 展示 schema、quality、label coverage。
+- 把导入数据切成 `D1...DN` 日分区。
 
 关键叙事：
 
-- 数据版本是持续学习闭环的起点。
-- schema、fingerprint、质量摘要用于判断本次训练是否可信。
-- invalid 或 archived 数据版本不能直接参与晋级证据链。
+- 每天都可能触发一次训练与推理循环。
+- 不合格分区只保留诊断，不参与自动 active 策略统计。
 
-下一步动作：
-
-- 从 validated 数据版本进入单算法实验或批量实验。
-- 若数据质量不足，进入问题详情或回到数据准备流程。
-
-### 3. Experiments：回答“单个算法学到了什么”
+### 2. Policy：实验前配置策略
 
 演示目标：
 
-- 承接现有单算法实验能力，展示输入数据、算法参数、结果图、指标和诊断。
-- 用较低认知成本解释一次实验结果。
+- 先配置策略，再跑实验。
+- 默认 `1 天训练一次`。
+- 默认 `最新训练模型自动成为下一时间段 active 模型`。
 
 关键叙事：
 
-- 单算法实验用于快速理解某个算法在某个数据版本上的行为。
-- 指标、异常点、阈值线、结果诊断共同解释模型输出。
-- 单实验结果可以作为批量比较或候选训练的前置洞察。
+- 策略在实验上下文里冻结。
+- 本阶段只是实验 active，不修改生产 active pointer。
+- 后续可把训练周期和策略门槛做成配置项。
 
-下一步动作：
-
-- 参数和算法确认后进入 `Batch Compare`。
-- 若实验失败，查看错误状态和输入数据摘要。
-
-### 4. Batch Compare：回答“哪个候选方向更可靠”
+### 3. Rolling Experiment：按日滚动实验
 
 演示目标：
 
-- 展示多个算法、参数或数据版本组合的排行榜、矩阵和热力图。
-- 帮客户理解模型选择不是单点观察，而是可比较的评估过程。
+- 对每个 cutoff day `D`，使用 `<= D` 的数据训练和验证模型 `M_D`。
+- `M_D` 默认成为 `D` 之后到下一次训练前的 active 模型。
+- 使用这个 active 模型对后续时间段推理。
 
 关键叙事：
-
-- 排行榜用于识别整体表现最好的候选。
-- 矩阵和热力图用于识别稳定性、退化项和异常组合。
-- partial_failed 不能被隐藏，需要保留失败原因和影响范围。
-
-下一步动作：
-
-- 选择表现稳定的候选方向进入 `Strategy Simulation`。
-- 对失败组合进入 run detail 或 history 追溯。
-
-### 5. Strategy Simulation：回答“策略是否足够稳健”
-
-演示目标：
-
-- 模拟每日新增数据后的训练、评估与 auto-active 策略。
-- 在 dry-run / backtest / recommendation 形态下输出策略决策和数据实验效果指标。
-- 明确当前阶段不自动修改真实 active pointer。
-
-关键叙事：
-
-- 策略模拟优先服务实验平台，用来判断候选方向能否跨数据版本稳定成立。
-- 页面必须同时展示 `would_promote` / `needs_review` / `blocked` 决策和 F1 / PA-F1 / 误报漏报 / active delta 等效果指标。
-- 通过策略模拟后沉淀的是 winning config，而不是直接上线模型。
-
-下一步动作：
-
-- 策略稳健时进入 `Continuous Learning`。
-- 策略存在阻断或需复核时回到 `Batch Compare` 调整候选方向，或进入 `History` 查看失败上下文。
-
-### 6. Continuous Learning：回答“平台如何持续学习”
-
-演示目标：
-
-- 展示 rolling window、训练数据集版本、train job、评估任务和候选模型产出。
-- 解释持续学习不是自动变更 active model，而是先产生可评审 candidate。
-
-关键叙事：
-
-- 训练任务有明确输入、状态、参数和输出 artifact。
-- queued、training、evaluating、completed、failed、cancelled 是任务状态，不等同于模型生命周期状态。
-- completed train job 可能产生 candidate model，但 candidate 是否晋级需要证据评审。
-
-下一步动作：
-
-- completed job 进入 `Models` 查看候选模型证据。
-- failed job 进入 `History` 查看失败上下文。
-
-### 7. Models：回答“为什么这个模型可以晋级”
-
-演示目标：
-
-- 并排展示 candidate model 与 active model。
-- 以 evidence panel 解释晋级判断。
-
-证据面板必须覆盖：
-
-- 训练数据版本。
-- 评估数据版本。
-- 回测窗口。
-- 标签覆盖率。
-- 评估模式：`labeled` / `unlabeled` / `proxy`。
-- 指标可信度。
-- candidate vs active 指标差异。
-- 退化项。
-- 数据质量摘要。
-- 漂移或分布变化提示。
-- 模型 artifact ID / path / checksum / version。
-- 算法名称、参数、seed。
-- train job ID 与 experiment run ID。
-- 关键 artifact 链接。
-- promote / rollback 审计记录。
-
-评估证据约束：
-
-- `labeled` 模式且 label coverage 足够时，F1 / PA-F1 可作为晋级证据。
-- `unlabeled` 模式下，F1 / PA-F1 不应作为晋级证据；页面只展示无标签诊断、漂移提示或人工复核入口。
-- `proxy` 模式必须说明 proxy 来源和指标可信度，默认需要人工复核。
-
-关键叙事：
-
-- promote 按钮不是页面装饰，而是证据充足后的受控动作。
-- evidence 不足时必须展示“需人工复核”或“不可晋级”。
-- active、candidate、superseded、rolled_back 等状态构成模型生命周期。
-
-下一步动作：
-
-- evidence 充分：进入晋级确认。
-- evidence 不足：进入相关数据、实验或训练任务详情。
-- 已生效后：进入 `History` 查看审计记录。
-
-### 8. History：回答“生效后如何追溯与回滚”
-
-演示目标：
-
-- 统一查询 dataset、experiment、batch、train job、model version、promotion event。
-- 支持从事件回到证据链。
-
-关键叙事：
-
-- 每次晋级和回滚都应留下可审计记录。
-- rolled_back 不是普通失败态，而是模型生命周期中的重要事件。
-- 历史页用于复盘“当时为什么这么做”。
-
-下一步动作：
-
-- 从 promotion event 回到 model evidence。
-- 从失败事件回到 train job 或 batch run。
-
-## 核心闭环
-
-当前阶段应优先围绕实验平台形成闭环，先把不同数据集、算法、参数和策略模拟跑充分，再把胜出配置承接到训练任务、模型版本和晋级主流程。
-
-优先实验闭环：
 
 ```text
-Data
-  -> Experiments
-  -> Batch Compare
-  -> Candidate Direction
-  -> Strategy Simulation
-  -> Winning Config
+cutoff = D
+train_validate_data = rows[timestamp <= D]
+active_interval = (D, next_training_day]
+prediction_data = rows[timestamp in active_interval]
+prediction_model = M_D
 ```
 
-最终承接闭环：
+### 4. Results：比较算法效果
+
+演示目标：
+
+- 展示每个算法/参数组合的多日推理结果。
+- 汇总日指标与整体指标。
+- 输出候选算法配置排行。
+
+关键叙事：
+
+- 推理结果不是用最终模型扫全量数据。
+- 每条预测都必须能追溯到当时生效的 `active_model_id`。
+- 算法对比基于同样的滚动规则和同样的数据分区。
+
+## 推理结果计算逻辑
+
+对每个算法/参数组合：
 
 ```text
-Winning Config
-  -> Continuous Learning
-  -> Models
-  -> History
+for D in imported_days:
+    train_data = rows where timestamp <= D
+    validation_data = validation split inside train_data
+    M_D = train(algorithm, params, train_data)
+    validate(M_D, validation_data)
+
+    active_interval = (D, next_training_day]
+    set_experiment_active(M_D, active_interval)
+
+    inference_rows = rows where timestamp in active_interval
+    predictions = detect(M_D, inference_rows)
+    append prediction ledger
 ```
 
-闭环解释：
+Prediction ledger 至少包含：
 
-- `Data` 定义模型学习来源。
-- `Experiments` 解释单次算法行为。
-- `Batch Compare` 在不同数据集、算法和参数之间形成候选方向。
-- `Strategy Simulation` 模拟每日新增数据后的训练、评估和 auto-active 策略，帮助判断策略是否足够稳健。
-- `Strategy Simulation` 必须展示实验效果指标，包括单次 F1 / PA-F1、跨数据集稳定性、策略模拟切换次数、相对 active 的指标 delta、数据质量和 label coverage。
-- `Continuous Learning` 将 winning config 转化为训练任务与候选模型。
-- `Models` 用 evidence 决定是否晋级。
-- `History` 负责生效后的追溯与回滚。
+```text
+timestamp
+algorithm
+params
+cutoff_day
+active_model_id
+predicted_label
+score
+label
+```
 
 ## 异常旅程
 
-### 数据质量不足
+### 数据分区无效
 
 ```text
-Data invalid -> Experiments disabled -> Models evidence incomplete
+day partition invalid -> rolling cycle skipped -> diagnostics
 ```
 
-页面需要明确说明不可继续的原因，而不是只隐藏操作。
+原因可能是 schema 不完整、label coverage 不足或数据质量低。
 
-### 批量实验部分失败
+### 缺少 active 模型覆盖
 
 ```text
-Batch Compare partial_failed -> 展示成功结果 + 失败组合 + 影响范围
+timestamp not in any active interval -> prediction blocked -> excluded from auto-active stats
 ```
 
-成功结果可继续评估，但失败组合必须保留上下文。
+页面必须说明缺失的时间段，而不是静默跳过。
 
-### 候选模型证据不足
+### 算法组合失败
 
 ```text
-Models candidate -> evidence incomplete -> promote disabled -> 指向缺失证据来源
+algorithm config failed on day D -> keep other configs running -> mark partial_failed
 ```
 
-缺失项可能来自数据质量、评估窗口不足、指标退化或 artifact 缺失。
-
-### 生效后回滚
-
-```text
-Active model abnormal -> History promotion event -> Models previous version -> rollback audit
-```
-
-回滚必须展示来源事件、目标版本和原因。
+成功组合仍可参与排行，失败组合进入 Diagnostics。

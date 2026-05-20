@@ -1,200 +1,86 @@
 <mxfile host="app.diagrams.net" modified="2026-05-20T00:00:00.000Z" agent="Codex" version="24.7.17">
-  <diagram id="offline-model-lifecycle" name="离线模型生命周期">
-    <mxGraphModel dx="2200" dy="1040" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1040" math="0" shadow="0">
+  <diagram id="mvp-rolling-algorithm-experiment" name="MVP滚动算法实验">
+    <mxGraphModel dx="1500" dy="1720" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="1720" math="0" shadow="0">
       <root>
         <mxCell id="0"/>
         <mxCell id="1" parent="0"/>
 
-        <mxCell id="title" value="M2 当前阶段：实验与策略模拟优先，模型生命周期主流程后续承接&#xa;先比较不同数据集上的算法 / 参数 / 策略，再将胜出配置沉淀为 Train Job、Model Version 与 Promotion 事件" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1;fontColor=#172033;" vertex="1" parent="1">
-          <mxGeometry x="40" y="24" width="1500" height="62" as="geometry"/>
-        </mxCell>
-        <mxCell id="legend-priority" value="蓝色：当前优先实验闭环" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
-          <mxGeometry x="1580" y="28" width="170" height="32" as="geometry"/>
-        </mxCell>
-        <mxCell id="legend-strategy" value="紫色：策略模拟闭环" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f2ff;strokeColor=#c4b5fd;fontColor=#172033;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
-          <mxGeometry x="1765" y="28" width="155" height="32" as="geometry"/>
-        </mxCell>
-        <mxCell id="legend-main" value="绿色：后续落地主流程" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f6f1;strokeColor=#6abf9f;fontColor=#172033;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
-          <mxGeometry x="1935" y="28" width="170" height="32" as="geometry"/>
+        <mxCell id="title" value="M2 MVP：导入多天数据后的滚动算法实验与 auto-active 策略模拟&#xa;截止到 Day D 的数据训练/验证模型 M_D；下一次训练更新前，后续时间段推理都使用 M_D 这个 active 模型" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1;fontColor=#172033;" vertex="1" parent="1">
+          <mxGeometry x="50" y="24" width="1220" height="70" as="geometry"/>
         </mxCell>
 
-        <mxCell id="lane-a" value="优先闭环 A：数据实验与算法选择，目标是找到不同数据集下更可靠的算法 / 参数方向" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fbff;strokeColor=#c9d8f6;fontColor=#3b557f;fontStyle=1;align=left;verticalAlign=top;spacing=12;" vertex="1" parent="1">
-          <mxGeometry x="40" y="110" width="2070" height="165" as="geometry"/>
-        </mxCell>
-        <mxCell id="lane-b" value="优先闭环 B：每日新增数据后的离线策略模拟，目标是量化 auto-active 策略是否足够稳健" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f2ff;strokeColor=#c4b5fd;fontColor=#4c1d95;fontStyle=1;align=left;verticalAlign=top;spacing=12;" vertex="1" parent="1">
-          <mxGeometry x="40" y="315" width="2070" height="175" as="geometry"/>
-        </mxCell>
-        <mxCell id="lane-main" value="后续承接主流程：将胜出配置落成模型版本、晋级事件与 active pointer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#d8e0ea;fontColor=#526070;fontStyle=1;align=left;verticalAlign=top;spacing=12;" vertex="1" parent="1">
-          <mxGeometry x="40" y="535" width="2070" height="170" as="geometry"/>
-        </mxCell>
-        <mxCell id="lane-exception" value="停止与复核：训练失败、证据不足或策略退化时，不更新 active pointer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffafa;strokeColor=#f3c4c4;fontColor=#8a1f1f;fontStyle=1;align=left;verticalAlign=top;spacing=12;" vertex="1" parent="1">
-          <mxGeometry x="40" y="745" width="1010" height="120" as="geometry"/>
-        </mxCell>
-        <mxCell id="lane-recovery" value="恢复与审计：回滚只改变 active pointer，并保留事件记录" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8ea;strokeColor=#ffd99b;fontColor=#694000;fontStyle=1;align=left;verticalAlign=top;spacing=12;" vertex="1" parent="1">
-          <mxGeometry x="1100" y="745" width="1010" height="120" as="geometry"/>
+        <mxCell id="legend-1" value="主流程只使用竖向相邻箭头，右侧说明卡不连线，避免线框重叠" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8ea;strokeColor=#ffd99b;fontColor=#694000;fontSize=12;align=left;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="50" y="100" width="1220" height="38" as="geometry"/>
         </mxCell>
 
-        <mxCell id="a-data" value="Dataset Selection&#xa;dataset version / window&#xa;quality + label coverage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c9d8f6;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="70" y="160" width="210" height="78" as="geometry"/>
+        <mxCell id="n1" value="1. Import Multi-Day Dataset&#xa;一次导入多天指标数据&#xa;timestamp / metric / label" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c9d8f6;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="165" width="390" height="76" as="geometry"/>
         </mxCell>
-        <mxCell id="a-exp" value="Experiment Run&#xa;单算法实验&#xa;解释算法行为" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="340" y="160" width="210" height="78" as="geometry"/>
+        <mxCell id="n2" value="2. Schema &amp; Quality Check&#xa;角色推断、质量分、label coverage&#xa;不合格数据只保留诊断" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c9d8f6;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="270" width="390" height="76" as="geometry"/>
         </mxCell>
-        <mxCell id="a-batch" value="Batch Compare&#xa;多算法 / 多参数 / 多数据集&#xa;保留 partial_failed 影响" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="610" y="160" width="230" height="78" as="geometry"/>
+        <mxCell id="n3" value="3. Build Day Partitions&#xa;D1 ... DN&#xa;每行必须保留 timestamp" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="375" width="390" height="76" as="geometry"/>
         </mxCell>
-        <mxCell id="a-metrics" value="Effect Metrics&#xa;F1 / PA-F1 / FP / FN&#xa;per-dataset stability" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c9d8f6;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="900" y="160" width="230" height="78" as="geometry"/>
+        <mxCell id="n4" value="4. Algorithm / Parameter Matrix&#xa;算法 × 参数 × 日分区&#xa;每个组合都会走同一套滚动实验" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="480" width="390" height="76" as="geometry"/>
         </mxCell>
-        <mxCell id="a-baseline" value="Active Baseline&#xa;candidate vs active delta&#xa;退化项与漂移提示" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f6f1;strokeColor=#6abf9f;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1190" y="160" width="220" height="78" as="geometry"/>
+        <mxCell id="n5" value="5. Configure Experiment Policy&#xa;默认训练周期：1 天&#xa;默认 auto-active：最新训练模型自动 active" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f2ff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="585" width="390" height="76" as="geometry"/>
         </mxCell>
-        <mxCell id="a-direction" value="Candidate Direction&#xa;胜出算法 / 参数 / 数据窗口&#xa;进入策略模拟或主流程" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1470" y="160" width="240" height="78" as="geometry"/>
+        <mxCell id="n6" value="6. Freeze Experiment Context&#xa;dataset_version / algorithm / params / cadence / policy&#xa;运行中不随结果变更" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f2ff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="690" width="390" height="76" as="geometry"/>
         </mxCell>
-        <mxCell id="a-audit" value="Experiment Audit Context&#xa;run id / batch id / artifact refs&#xa;可回溯实验来源" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c9d8f6;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1770" y="160" width="250" height="78" as="geometry"/>
+        <mxCell id="n7" value="7. Select Cutoff Day D&#xa;对导入数据中的每一天循环&#xa;D = D1 ... DN" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c9d8f6;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="795" width="390" height="76" as="geometry"/>
         </mxCell>
-
-        <mxCell id="b-trigger" value="Daily Trigger&#xa;新增 partition validated&#xa;离线 dry-run" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="70" y="365" width="210" height="78" as="geometry"/>
+        <mxCell id="n8" value="8. Build Train / Validation Set&#xa;使用截止到 Day D 的数据&#xa;训练集 + 验证集" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="900" width="390" height="76" as="geometry"/>
         </mxCell>
-        <mxCell id="b-dataset" value="Auto Build Dataset&#xa;policy rolling window&#xa;fingerprint 去重" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="340" y="365" width="210" height="78" as="geometry"/>
+        <mxCell id="n9" value="9. Train / Validate Model M_D&#xa;训练当日模型，计算验证指标&#xa;保存 model_id、params、seed、metrics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1005" width="390" height="76" as="geometry"/>
         </mxCell>
-        <mxCell id="b-train" value="Scheduled Train + Evaluate&#xa;训练 candidate&#xa;生成 evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="610" y="365" width="230" height="78" as="geometry"/>
+        <mxCell id="n10" value="10. Set Active for Next Interval&#xa;默认 M_D 自动成为 active&#xa;effective_from = D 之后；effective_to = 下一次训练前" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f2ff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1110" width="390" height="82" as="geometry"/>
         </mxCell>
-        <mxCell id="b-policy" value="Effect Metrics + Policy&#xa;min delta / max regression&#xa;label coverage / quality / drift" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="900" y="365" width="230" height="78" as="geometry"/>
+        <mxCell id="n11" value="11. Infer Next Interval&#xa;对 D 之后到下一次训练前的数据推理&#xa;必须使用该时间段 active model" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f6f1;strokeColor=#6abf9f;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1225" width="390" height="82" as="geometry"/>
         </mxCell>
-        <mxCell id="b-gate" value="Policy Decision&#xa;would_promote / needs_review / blocked" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff8ea;strokeColor=#ffd99b;fontColor=#694000;align=center;verticalAlign=middle;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1210" y="358" width="150" height="92" as="geometry"/>
+        <mxCell id="n12" value="12. Store Prediction Ledger&#xa;timestamp / algorithm / params / active_model_id&#xa;predicted_label / score / label" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d8e0ea;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1340" width="390" height="82" as="geometry"/>
         </mxCell>
-        <mxCell id="b-report" value="Simulation Report&#xa;active timeline&#xa;promote / blocked counts&#xa;regressions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f2ff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1470" y="365" width="240" height="78" as="geometry"/>
-        </mxCell>
-        <mxCell id="b-recommend" value="Recommendation&#xa;进入 manual promotion&#xa;或保持人工复核" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1770" y="365" width="250" height="78" as="geometry"/>
+        <mxCell id="n13" value="13. Aggregate Metrics &amp; Rank&#xa;按天、算法、参数汇总&#xa;F1 / PA-F1 / FP / FN / active switch timeline" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f6f1;strokeColor=#6abf9f;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1455" width="390" height="82" as="geometry"/>
         </mxCell>
 
-        <mxCell id="m-config" value="Winning Config&#xa;算法 / 参数 / 数据窗口&#xa;来自实验与策略模拟" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d8e0ea;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="70" y="585" width="210" height="78" as="geometry"/>
+        <mxCell id="note-policy" value="策略配置&#xa;&#xa;MVP 默认：&#xa;- 训练周期 = 1 天&#xa;- 最新训练模型自动 active&#xa;- 真实生产 active pointer 不改变&#xa;&#xa;后续可配置：&#xa;- 训练周期&#xa;- min metric delta&#xa;- max regression&#xa;- label coverage / quality gate&#xa;- needs_review / blocked 策略" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f7f2ff;strokeColor=#c4b5fd;fontColor=#172033;align=left;verticalAlign=top;spacing=14;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="560" y="165" width="390" height="300" as="geometry"/>
         </mxCell>
-        <mxCell id="m-train" value="Train Job&#xa;input: training_dataset_id&#xa;algo / params / seed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d8e0ea;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="340" y="585" width="210" height="78" as="geometry"/>
+        <mxCell id="note-loop" value="多日循环语义&#xa;&#xa;导入数据包含 D1...DN 多天。&#xa;对每个算法/参数组合：&#xa;1. 取 cutoff day D。&#xa;2. 用 ≤D 的数据训练/验证 M_D。&#xa;3. M_D 默认成为 D 后续区间 active。&#xa;4. 用 M_D 推理直到下一次训练。&#xa;5. D 前进一天，重复。&#xa;&#xa;因此一次导入会产生多次训练与推理循环。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8ea;strokeColor=#ffd99b;fontColor=#694000;align=left;verticalAlign=top;spacing=14;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="560" y="515" width="390" height="320" as="geometry"/>
         </mxCell>
-        <mxCell id="m-artifact" value="Model Artifact&#xa;model.json + schema&#xa;params + metrics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f6f1;strokeColor=#6abf9f;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="610" y="585" width="230" height="78" as="geometry"/>
+        <mxCell id="note-active" value="Active Timeline 示例&#xa;&#xa;initial_model: (-∞, D1]&#xa;M_D1: (D1, D2]&#xa;M_D2: (D2, D3]&#xa;M_D3: (D3, D4]&#xa;...&#xa;&#xa;推理规则：&#xa;prediction.timestamp ∈ active.effective_range&#xa;⇒ 使用该 active_model_id 计算 predicted_label / score" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f6f1;strokeColor=#6abf9f;fontColor=#172033;align=left;verticalAlign=top;spacing=14;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="515" width="410" height="320" as="geometry"/>
         </mxCell>
-        <mxCell id="m-version" value="Model Version&#xa;status: candidate&#xa;links train_job + artifact" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="900" y="585" width="230" height="78" as="geometry"/>
+        <mxCell id="note-output" value="MVP 输出&#xa;&#xa;1. 每个算法/参数的多日推理结果。&#xa;2. 每天 active_model_id 与预测结果。&#xa;3. 每天与整体效果指标。&#xa;4. auto-active 策略模拟摘要。&#xa;5. 候选算法配置排行榜。&#xa;&#xa;暂不输出：模型注册、manual promotion、生产 active pointer 修改、online serving。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#d8e0ea;fontColor=#526070;align=left;verticalAlign=top;spacing=14;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="560" y="885" width="390" height="300" as="geometry"/>
         </mxCell>
-        <mxCell id="m-evidence" value="Evidence Review&#xa;candidate vs active&#xa;labeled / unlabeled / proxy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d8e0ea;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1190" y="585" width="220" height="78" as="geometry"/>
-        </mxCell>
-        <mxCell id="m-promote" value="Manual Promotion&#xa;人工触发受控晋级&#xa;非无人值守上线" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d8e0ea;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1470" y="585" width="240" height="78" as="geometry"/>
-        </mxCell>
-        <mxCell id="m-active" value="Active Model Pointer&#xa;scope 内唯一 active&#xa;作为后续 baseline" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f6f1;strokeColor=#6abf9f;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1770" y="585" width="250" height="78" as="geometry"/>
+        <mxCell id="note-guard" value="保护线&#xa;&#xa;数据 invalid、label coverage 不足、或某时间段缺少 active model 时：&#xa;- 该日/分区结果标记 blocked。&#xa;- 只保留诊断。&#xa;- 不参与自动 active 策略统计。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdecec;strokeColor=#ee9a9a;fontColor=#8a1f1f;align=left;verticalAlign=top;spacing=14;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="885" width="410" height="220" as="geometry"/>
         </mxCell>
 
-        <mxCell id="s-train-fail" value="Train Failed&#xa;记录 error_message&#xa;不生成 Model Version" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdecec;strokeColor=#ee9a9a;fontColor=#8a1f1f;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="70" y="785" width="220" height="58" as="geometry"/>
-        </mxCell>
-        <mxCell id="s-review" value="Needs Review / Blocked&#xa;证据不足、数据 invalid&#xa;或策略退化超阈值" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdecec;strokeColor=#ee9a9a;fontColor=#8a1f1f;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="350" y="785" width="260" height="58" as="geometry"/>
-        </mxCell>
-        <mxCell id="s-no-active" value="No Active Change&#xa;保持当前 active pointer&#xa;输出原因与指标报告" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdecec;strokeColor=#ee9a9a;fontColor=#8a1f1f;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="670" y="785" width="260" height="58" as="geometry"/>
-        </mxCell>
-        <mxCell id="r-event" value="Rollback Event&#xa;人工回滚到历史模型&#xa;保留审计" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8ea;strokeColor=#ffd99b;fontColor=#694000;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1130" y="785" width="260" height="58" as="geometry"/>
-        </mxCell>
-        <mxCell id="r-restore" value="Restore Active Pointer&#xa;只更新 active 指针&#xa;不代表在线发布" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8ea;strokeColor=#ffd99b;fontColor=#694000;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1450" y="785" width="260" height="58" as="geometry"/>
-        </mxCell>
-        <mxCell id="r-audit" value="Audit Trail&#xa;previous / target model&#xa;actor / reason / refs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8ea;strokeColor=#ffd99b;fontColor=#694000;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1770" y="785" width="260" height="58" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="note" value="边界说明：M2 可实现离线策略模拟和效果指标报告；真实无人值守 auto-active、在线 serving、生产流量切换、多租户权限仍不属于当前主流程。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8ea;strokeColor=#ffd99b;fontColor=#694000;align=left;verticalAlign=middle;spacing=12;" vertex="1" parent="1">
-          <mxGeometry x="40" y="925" width="2070" height="58" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="ea1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;" edge="1" parent="1" source="a-data" target="a-exp">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="ea2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;" edge="1" parent="1" source="a-exp" target="a-batch">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="ea3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;" edge="1" parent="1" source="a-batch" target="a-metrics">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="ea4" value="compare" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="a-metrics" target="a-baseline">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="ea5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;" edge="1" parent="1" source="a-baseline" target="a-direction">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="ea6" value="refs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="a-direction" target="a-audit">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="eb1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#8b5cf6;strokeWidth=2;" edge="1" parent="1" source="b-trigger" target="b-dataset">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="eb2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#8b5cf6;strokeWidth=2;" edge="1" parent="1" source="b-dataset" target="b-train">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="eb3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#8b5cf6;strokeWidth=2;" edge="1" parent="1" source="b-train" target="b-policy">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="eb4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#8b5cf6;strokeWidth=2;" edge="1" parent="1" source="b-policy" target="b-gate">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="eb5" value="metrics" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#8b5cf6;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="b-gate" target="b-report">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="eb6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#8b5cf6;strokeWidth=2;" edge="1" parent="1" source="b-report" target="b-recommend">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="em1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;" edge="1" parent="1" source="m-config" target="m-train">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="em2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;" edge="1" parent="1" source="m-train" target="m-artifact">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="em3" value="register" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="m-artifact" target="m-version">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="em4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;" edge="1" parent="1" source="m-version" target="m-evidence">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="em5" value="sufficient" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="m-evidence" target="m-promote">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="em6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;" edge="1" parent="1" source="m-promote" target="m-active">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="er1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#b9770e;strokeWidth=2;" edge="1" parent="1" source="r-event" target="r-restore">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="er2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#b9770e;strokeWidth=2;" edge="1" parent="1" source="r-restore" target="r-audit">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-
-        <mxCell id="bridge-b" value="推荐" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=open;dashed=1;strokeColor=#8b5cf6;fontSize=12;" edge="1" parent="1" source="b-recommend" target="m-config">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="1895" y="510"/>
-              <mxPoint x="175" y="510"/>
-            </Array>
-          </mxGeometry>
-        </mxCell>
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n1" target="n2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n2" target="n3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n3" target="n4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#8b5cf6;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n4" target="n5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#8b5cf6;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n5" target="n6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n6" target="n7"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n7" target="n8"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#526070;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n8" target="n9"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e9" value="default active latest" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#8b5cf6;strokeWidth=2;fontSize=12;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n9" target="n10"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e10" value="until next training" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#16815f;strokeWidth=2;fontSize=12;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n10" target="n11"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#16815f;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n11" target="n12"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeColor=#16815f;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n12" target="n13"><mxGeometry relative="1" as="geometry"/></mxCell>
       </root>
     </mxGraphModel>
   </diagram>
