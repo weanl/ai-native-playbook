@@ -45,13 +45,17 @@ HTML 原型演示样例：
 Overview -> Data -> Experiments -> Batch Compare -> Continuous Learning -> Models -> History
 ```
 
-原型还应提供一张模型生成流程图，用同一示例展示：
+离线 model 生命周期应以训练数据集、训练任务、模型 artifact、模型版本注册和晋级事件为主轴。推荐先以 drawio 作为流程 source of truth，再回填 HTML 原型：
 
 ```text
-dataset version -> experiment run -> batch candidate -> train job -> candidate model -> evidence review -> active model / history audit
+Daily Data Partition -> Training Dataset Version -> Train Job -> Model Artifact
+-> Model Version(candidate) -> Offline Evaluation / Evidence -> Manual Promotion
+-> Active Model / Archived Previous Model
 ```
 
-流程图中的节点应可点击，并与旅程步骤联动，帮助 reviewer 从“模型如何生成”反查每个对象的证据来源。
+`experiment run` 与 `batch run` 是探索、算法参数选择和证据引用来源，不应被表达为 model artifact 的直接生产步骤。
+
+流程图文件：`docs/product/ui/offline-model-lifecycle.drawio`。
 
 ## Overview
 
