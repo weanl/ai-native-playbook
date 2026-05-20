@@ -8,7 +8,7 @@
 | 2 | 明确多天导入与多日训练/推理循环 | changes | done | cutoff day D 语义 |
 | 3 | 明确 auto-active 默认策略 | changes | done | 默认最新训练模型自动 active |
 | 4 | 明确推理结果计算逻辑 | changes | done | timestamp 命中 active interval |
-| 5 | 明确原型页面边界 | changes | done | Data / Policy / Rolling Experiment / Results / Diagnostics |
+| 5 | 明确原型页面边界 | changes | done | Data / Policy / Rolling Experiment / Results，异常说明内联展示 |
 
 ## Implementation 清单
 
@@ -26,7 +26,7 @@
 
 1. `xmllint --noout docs/product/ui/offline-model-lifecycle.drawio`
 2. 检查 HTML 原型无 CDN、远程字体、外部 JS、外部 CSS 或网络请求。
-3. 检查 HTML 原型包含 Data、Policy、Rolling Experiment、Results、Diagnostics。
+3. 检查 HTML 原型包含 Data、Policy、Rolling Experiment、Results，不包含独立异常页面。
 4. 检查 HTML 原型不包含 Models、History、manual promotion、rollback 等后续主流程页面。
 5. `git diff --check`
 

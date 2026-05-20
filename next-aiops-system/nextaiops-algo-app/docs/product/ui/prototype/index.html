@@ -700,7 +700,6 @@
           </div>
           <div class="toolbar">
             <button class="btn ghost" type="button" onclick="resetReplay()">重置回放</button>
-            <button class="btn" type="button" onclick="showPage('diagnostics')">诊断</button>
             <button class="btn primary" type="button" onclick="goPrimary()">下一步</button>
           </div>
         </header>
@@ -816,13 +815,26 @@
                   <tr><th>metrics</th><td>latency_ms、cpu_usage、mem_usage</td></tr>
                   <tr><th>label column</th><td>is_anomaly</td></tr>
                   <tr><th>valid partitions</th><td id="valid-partitions">6 / 7</td></tr>
-                  <tr><th>blocked policy</th><td>低覆盖分区保留诊断，不参与自动 active 统计</td></tr>
+                  <tr><th>blocked policy</th><td>低覆盖分区保留异常说明，不参与自动 active 统计</td></tr>
                 </tbody>
               </table>
               <div class="actions" style="margin-top: 12px;">
                 <button class="btn primary" type="button" onclick="showPage('policy')">使用有效分区</button>
               </div>
             </div>
+          </div>
+
+          <div class="panel">
+            <h2>分区异常说明</h2>
+            <table>
+              <thead>
+                <tr><th>对象</th><th>状态</th><th>原因</th><th>实验处理</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>D6 partition</td><td><span class="badge warning">low_label_coverage</span></td><td>label coverage 82%，低于默认门槛 90%</td><td>保留异常说明，不参与自动 active 策略统计</td></tr>
+                <tr><td>active interval</td><td><span class="badge success">covered</span></td><td>每个推理 timestamp 都能命中唯一 active 模型</td><td>可参与 prediction ledger</td></tr>
+              </tbody>
+            </table>
           </div>
         </section>
 
@@ -917,6 +929,10 @@
             </div>
           </div>
 
+          <div class="alert" id="experiment-issue">
+            当前循环无阻断项。若某日 label coverage 或质量门槛不满足，会在这里以内联方式展示，不再进入独立页面。
+          </div>
+
           <div class="grid-2">
             <div class="panel">
               <h2>Algorithm Matrix</h2>
@@ -988,12 +1004,10 @@
               <tbody id="result-timeline"></tbody>
             </table>
           </div>
-        </section>
 
-        <section class="page" data-page="diagnostics">
           <div class="grid-2">
             <div class="panel">
-              <h2>Blocked / Partial Failed</h2>
+              <h2>Excluded / Blocked Items</h2>
               <table>
                 <thead>
                   <tr><th>对象</th><th>状态</th><th>原因</th><th>指标处理</th></tr>
@@ -1006,7 +1020,7 @@
               </table>
             </div>
             <div class="panel">
-              <h2>Active Coverage</h2>
+              <h2>Active Coverage Check</h2>
               <table>
                 <thead>
                   <tr><th>检查项</th><th>结果</th><th>状态</th></tr>
@@ -1017,10 +1031,6 @@
                   <tr><td>quality gate</td><td>D6 below threshold</td><td><span class="badge warning">review</span></td></tr>
                 </tbody>
               </table>
-              <div class="actions" style="margin-top: 12px;">
-                <button class="btn" type="button" onclick="showPage('data')">返回数据</button>
-                <button class="btn primary" type="button" onclick="showPage('experiment')">返回实验</button>
-              </div>
             </div>
           </div>
         </section>
@@ -1034,8 +1044,7 @@
       { key: "data", label: "数据", meta: "导入与分区", title: "导入数据与日分区", subtitle: "确认 dataset_version、schema、质量分和可参与实验的 day partitions。" },
       { key: "policy", label: "策略", meta: "冻结上下文", title: "实验策略", subtitle: "在运行前配置训练周期与 auto-active 策略，并冻结实验上下文。" },
       { key: "experiment", label: "滚动实验", meta: "Train / Active / Infer", title: "滚动算法实验", subtitle: "按 cutoff day 训练验证模型，设置下一时间段 active，并生成推理 ledger。" },
-      { key: "results", label: "结果", meta: "指标与排行", title: "算法效果对比", subtitle: "汇总多日推理指标，比较算法配置并输出候选配置。" },
-      { key: "diagnostics", label: "诊断", meta: "Blocked 状态", title: "诊断与阻断项", subtitle: "定位低覆盖、partial failed 和 active coverage 问题。" }
+      { key: "results", label: "结果", meta: "指标与排行", title: "算法效果对比", subtitle: "汇总多日推理指标，比较算法配置，并在结果页解释被排除的日期或算法组合。" }
     ];
 
     const workflow = [
@@ -1167,7 +1176,7 @@
       } else if (state.page === "experiment") {
         runNextCycle();
       } else if (state.page === "results") {
-        showPage("diagnostics");
+        showPage("overview");
       } else {
         showPage("overview");
       }
@@ -1358,6 +1367,15 @@
       $("#cycle-active").textContent = cycle.model;
       $("#cycle-interval").textContent = cycle.range;
       $("#cycle-infer").textContent = `${cycle.infer.id} / ${cycle.infer.date}`;
+      const blocked = cycle.infer.coverage < state.minCoverage || cycle.infer.quality < state.qualityGate;
+      const partial = algorithm.key === "seasonal" && state.currentCycle === 4;
+      if (partial) {
+        $("#experiment-issue").innerHTML = `<strong>当前循环 partial_failed：</strong>${algorithm.name} 在 ${cycle.cutoff.id} 窗口样本不足，其他算法配置继续参与排行。`;
+      } else if (blocked) {
+        $("#experiment-issue").innerHTML = `<strong>当前推理日被标记为 review：</strong>${cycle.infer.id} label coverage ${cycle.infer.coverage}% / quality ${cycle.infer.quality}，低于策略门槛，不参与自动 active 统计。`;
+      } else {
+        $("#experiment-issue").textContent = "当前循环无阻断项。若某日 label coverage 或质量门槛不满足，会在这里以内联方式展示，不再进入独立页面。";
+      }
 
       $("#day-strip").innerHTML = Array.from({ length: cycleCount }, (_, index) => {
         const c = cycleAt(index);
@@ -1426,7 +1444,7 @@
         const low = cycle.infer.coverage < state.minCoverage || cycle.infer.quality < state.qualityGate;
         const completed = index < state.completedCycles;
         const stateText = low
-          ? statusBadge("warning", "diagnostic")
+          ? statusBadge("warning", "review")
           : completed ? statusBadge("success", "active_assigned") : statusBadge("neutral", "pending");
         return `<tr><td>${cycle.cutoff.id}</td><td>${cycle.model}</td><td>${cycle.range}</td><td>${cycle.infer.id}</td><td>${stateText}</td></tr>`;
       }).join("");

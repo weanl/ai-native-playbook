@@ -16,7 +16,7 @@
         <mxCell id="n1" value="1. Import Multi-Day Dataset&#xa;一次导入多天指标数据&#xa;timestamp / metric / label" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c9d8f6;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="70" y="165" width="390" height="76" as="geometry"/>
         </mxCell>
-        <mxCell id="n2" value="2. Schema &amp; Quality Check&#xa;角色推断、质量分、label coverage&#xa;不合格数据只保留诊断" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c9d8f6;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="n2" value="2. Schema &amp; Quality Check&#xa;角色推断、质量分、label coverage&#xa;不合格数据只保留异常说明" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#c9d8f6;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="70" y="270" width="390" height="76" as="geometry"/>
         </mxCell>
         <mxCell id="n3" value="3. Build Day Partitions&#xa;D1 ... DN&#xa;每行必须保留 timestamp" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4ff;strokeColor=#9bb7f0;fontColor=#172033;align=left;verticalAlign=middle;spacing=10;fontSize=12;" vertex="1" parent="1">
@@ -65,7 +65,7 @@
         <mxCell id="note-output" value="MVP 输出&#xa;&#xa;1. 每个算法/参数的多日推理结果。&#xa;2. 每天 active_model_id 与预测结果。&#xa;3. 每天与整体效果指标。&#xa;4. auto-active 策略模拟摘要。&#xa;5. 候选算法配置排行榜。&#xa;&#xa;暂不输出：模型注册、manual promotion、生产 active pointer 修改、online serving。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#d8e0ea;fontColor=#526070;align=left;verticalAlign=top;spacing=14;fontSize=13;" vertex="1" parent="1">
           <mxGeometry x="560" y="885" width="390" height="300" as="geometry"/>
         </mxCell>
-        <mxCell id="note-guard" value="保护线&#xa;&#xa;数据 invalid、label coverage 不足、或某时间段缺少 active model 时：&#xa;- 该日/分区结果标记 blocked。&#xa;- 只保留诊断。&#xa;- 不参与自动 active 策略统计。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdecec;strokeColor=#ee9a9a;fontColor=#8a1f1f;align=left;verticalAlign=top;spacing=14;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="note-guard" value="保护线&#xa;&#xa;数据 invalid、label coverage 不足、或某时间段缺少 active model 时：&#xa;- 该日/分区结果标记 blocked。&#xa;- 只保留异常说明与排除原因。&#xa;- 不参与自动 active 策略统计。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdecec;strokeColor=#ee9a9a;fontColor=#8a1f1f;align=left;verticalAlign=top;spacing=14;fontSize=13;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="1010" y="885" width="410" height="220" as="geometry"/>
         </mxCell>
 

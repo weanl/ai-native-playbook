@@ -21,7 +21,7 @@ active 区间状态
 | `loading` | 页面或组件加载中 | loading / skeleton |
 | `running` | 滚动实验正在执行 | 当前 day 高亮，关键配置 disabled |
 | `failed` | 当前步骤失败 | 错误摘要 + 定位上下文 |
-| `partial_failed` | 部分算法/日期失败 | 成功结果保留，失败项进入 Diagnostics |
+| `partial_failed` | 部分算法/日期失败 | 成功结果保留，失败项以内联提示和结果页排除项呈现 |
 | `completed` | 实验完成 | 结果表、排行与报告入口 |
 
 ## 数据分区状态
@@ -29,7 +29,7 @@ active 区间状态
 | 状态 | 含义 | 是否参与实验 |
 |---|---|---|
 | `valid` | schema 与质量满足要求 | 是 |
-| `low_label_coverage` | label 覆盖不足 | 可诊断，不参与自动 active 统计 |
+| `low_label_coverage` | label 覆盖不足 | 可解释，不参与自动 active 统计 |
 | `invalid` | schema 或质量阻断 | 否 |
 | `blocked` | 缺少 active model 覆盖或策略阻断 | 否 |
 
@@ -56,7 +56,7 @@ active 区间状态
 | `active_assigned` | `M_D` 已成为下一时间段 active | active interval |
 | `inferring` | 正在对下一时间段推理 | prediction ledger |
 | `completed` | 该日循环完成 | daily metrics |
-| `blocked` | 数据或 active 覆盖不满足 | diagnostics |
+| `blocked` | 数据或 active 覆盖不满足 | blocked reason / excluded items |
 
 ## Active 区间状态
 

@@ -63,7 +63,7 @@ Import Multi-Day Dataset
 - [ ] 文档明确推理结果按 `timestamp -> active_model_id` 计算。
 - [ ] drawio 流程清晰，无明显线框重叠。
 - [ ] HTML 原型为单文件、自包含、无外部依赖。
-- [ ] HTML 原型可演示 Data、Policy、Rolling Experiment、Results 与 Diagnostics。
+- [ ] HTML 原型可演示 Data、Policy、Rolling Experiment、Results，并在相关页面内联展示 blocked / partial_failed 原因。
 - [ ] HTML 原型不展示 Models、History、manual promotion、回滚或生产发布页面。
 
 ## 相关信息

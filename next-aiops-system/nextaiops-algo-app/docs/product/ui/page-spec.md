@@ -43,8 +43,9 @@ Data
 Policy
 Rolling Experiment
 Results
-Diagnostics
 ```
+
+独立异常页不作为一级页面。异常与排除原因以内联区块承载：Data 展示分区质量原因，Rolling Experiment 展示当前循环阻断/部分失败，Results 汇总 excluded / blocked items。
 
 核心对象：
 
@@ -151,7 +152,6 @@ Diagnostics
 
 - `Continue next day`
 - `Open results` -> `Results`
-- `Open diagnostics` -> `Diagnostics`
 
 ## Results
 
@@ -171,30 +171,9 @@ Diagnostics
 - Ranking：按整体 PA-F1、稳定性、退化项排序。
 - Active timeline：每天使用的 active 模型。
 - Policy summary：`auto_active_count`、`blocked_count`、`needs_review_count`。
+- Excluded / blocked items：被排除日期、算法配置、原因、是否参与指标。
 
 下一步动作：
 
 - `Choose candidate algorithm config`
 - 后续另行进入模型生命周期主流程设计。
-
-## Diagnostics
-
-页面目标：
-
-- 展示被排除或 blocked 的分区、算法组合和原因。
-
-用户动作：
-
-- 查看 invalid day partition。
-- 查看缺少 active model 覆盖的时间段。
-- 查看 partial failed 算法配置。
-
-核心信息：
-
-- `blocked` 原因。
-- 受影响日期与算法配置。
-- 是否参与最终指标统计。
-
-下一步动作：
-
-- 返回 Data 或 Rolling Experiment 调整输入与策略。

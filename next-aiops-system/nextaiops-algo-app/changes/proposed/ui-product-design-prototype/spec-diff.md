@@ -25,8 +25,9 @@ Data
 Policy
 Rolling Experiment
 Results
-Diagnostics
 ```
+
+异常说明不再作为独立一级页面，而是嵌入 Data、Rolling Experiment 与 Results。
 
 核心流程：
 

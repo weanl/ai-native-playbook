@@ -49,7 +49,7 @@
 关键叙事：
 
 - 每天都可能触发一次训练与推理循环。
-- 不合格分区只保留诊断，不参与自动 active 策略统计。
+- 不合格分区在 Data 页内联展示原因，不参与自动 active 策略统计。
 
 ### 2. Policy：实验前配置策略
 
@@ -134,7 +134,7 @@ label
 ### 数据分区无效
 
 ```text
-day partition invalid -> rolling cycle skipped -> diagnostics
+day partition invalid -> rolling cycle skipped -> Data inline reason + Results excluded items
 ```
 
 原因可能是 schema 不完整、label coverage 不足或数据质量低。
@@ -153,4 +153,4 @@ timestamp not in any active interval -> prediction blocked -> excluded from auto
 algorithm config failed on day D -> keep other configs running -> mark partial_failed
 ```
 
-成功组合仍可参与排行，失败组合进入 Diagnostics。
+成功组合仍可参与排行，失败组合在 Rolling Experiment 当前循环提示与 Results excluded items 中展示。

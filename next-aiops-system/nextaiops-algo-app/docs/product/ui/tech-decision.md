@@ -19,7 +19,6 @@ Data Import
 Policy Config
 Rolling Experiment Runner
 Results / Ranking
-Diagnostics
 ```
 
 不建议在此时迁移 React / Next.js。
