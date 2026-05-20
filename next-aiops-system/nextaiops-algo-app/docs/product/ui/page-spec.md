@@ -84,25 +84,29 @@ Daily Data Partition -> Training Dataset Version -> Train Job -> Model Artifact
 
 页面目标：
 
-- 让用户在 30 秒内理解当前系统状态。
-- 展示 active model、最近训练、最近实验和待处理事件。
+- 让用户在 30 秒内理解 M2 当前阶段的优先闭环。
+- 以 drawio 同构的流程板展示数据实验、策略模拟、主流程承接、停止复核与恢复审计。
+- 同时保留 active baseline、candidate direction、winning config 与 active pointer 的关键状态。
 
 用户动作：
 
-- 查看 active model。
-- 进入待复核 candidate model。
-- 进入失败 train job 或 partial failed batch run。
-- 跳转到 Data / Models / History。
+- 点击流程节点进入 Data、Experiments、Batch Compare、Strategy Simulation、Continuous Learning、Models 或 History。
+- 运行下一天策略模拟。
+- 从策略模拟 recommendation 承接到 winning config。
+- 进入待复核 evidence 或回滚审计。
 
 核心信息：
 
-- Active model card：版本、算法、生效时间、最近指标。
-- Candidate review card：候选模型数量、证据完整度、是否可晋级。
-- Recent train jobs：状态、输入数据版本、输出模型版本。
-- System status：数据质量、最近失败、artifact 状态。
+- 优先闭环 A：Dataset Selection、Experiment Run、Batch Compare、Effect Metrics、Active Baseline、Candidate Direction、Experiment Audit Context。
+- 优先闭环 B：Daily Trigger、Auto Build Dataset、Scheduled Train + Evaluate、Effect Metrics + Policy、Policy Decision、Simulation Report、Recommendation。
+- 后续承接主流程：Winning Config、Train Job、Model Artifact、Model Version、Evidence Review、Manual Promotion、Active Model Pointer。
+- 停止与复核：Train Failed、Needs Review / Blocked、No Active Change。
+- 恢复与审计：Rollback Event、Restore Active Pointer、Audit Trail。
 
 下一步动作：
 
+- `Open strategy simulation` -> `Strategy Simulation`
+- `Use winning config` -> `Continuous Learning`
 - `Review candidate` -> `Models`
 - `Inspect data` -> `Data`
 - `Open history` -> `History`

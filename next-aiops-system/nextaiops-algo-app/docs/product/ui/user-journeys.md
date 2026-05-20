@@ -66,20 +66,23 @@ M2-024 文档中如出现“上线 / 生效”，只表示模型版本在模型�
 
 演示目标：
 
-- 展示当前 active model、最近训练任务、最近批量评估和系统健康状态。
-- 告诉客户平台不是孤立页面，而是围绕模型生命周期组织。
+- 以 drawio 同构的流程板展示当前 M2 的真实重心：先做数据实验与策略模拟，再承接模型生命周期主流程。
+- 展示 active baseline、candidate direction、strategy simulation recommendation、winning config 和 active pointer 的关系。
+- 告诉客户平台不是孤立页面，而是围绕“实验优先闭环 + 策略模拟闭环 + 后续主流程承接”组织。
 
 关键叙事：
 
-- 当前生效的是哪个模型版本。
-- 最近一次训练是否完成，是否产生 candidate model。
-- 是否存在需要处理的失败、部分失败或待复核事件。
+- 当前阶段优先回答不同数据集、算法、参数和策略是否足够可靠。
+- `Strategy Simulation` 是一级闭环，不是 `Continuous Learning` 的附属说明。
+- `would_promote` 只表示离线推荐，不代表真实 active pointer 自动变化。
+- 主流程只承接 winning config，并通过 evidence review 与 manual promotion 控制风险。
 
 下一步动作：
 
-- 若有待复核 candidate model，进入 `Models`。
-- 若数据质量异常，进入 `Data`。
-- 若需要解释候选模型来源，先进入 `Strategy Simulation` 查看 winning config 依据，再承接到 `Continuous Learning`。
+- 从 Dataset Selection 进入 `Data`。
+- 从 Candidate Direction 进入 `Strategy Simulation`。
+- 从 Recommendation 进入 `Continuous Learning`。
+- 从 Evidence Review 或 Audit Trail 进入 `Models` / `History`。
 
 ### 2. Data：回答“模型从哪些数据学习”
 
