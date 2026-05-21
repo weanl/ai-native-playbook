@@ -1,14 +1,16 @@
-# M2-024 MVP 用户旅程
+# M2-024 用户旅程
 
 ## 目标
 
-本阶段用户旅程聚焦一个 MVP 问题：
+本原型围绕一个核心闭环：
 
 ```text
-一次导入多天数据后，平台如何按日滚动训练模型、自动切换实验 active 模型、对后续时间段推理，并比较不同算法效果？
+选择或上传数据 → 数据预览 → 实验配置 → 创建/启动任务 → 查看结果
 ```
 
-本文只定义产品旅程和原型叙事，不定义后端 schema，不实现生产模型生命周期。
+既覆盖 M1.6 的单算法/多算法批量实验，也预留 M2 滚动实验策略配置的入口。
+
+本文只定义产品旅程，不定义后端 schema，不实现生产模型生命周期。
 
 ## 角色
 
@@ -17,140 +19,77 @@
 关注点：
 
 - 是否能从导入数据跑完端到端算法实验。
-- 是否能解释多天数据上的训练、active、推理循环。
-- 是否能公平比较不同算法效果。
+- 批量实验排行榜和算法×文件矩阵是否一目了然。
+- M2 滚动策略配置是否可理解。
 
 ### 算法工程师
 
 关注点：
 
-- 每个算法/参数组合在不同日期的指标变化。
-- 训练集、验证集、推理区间是否清楚。
-- 推理结果使用的是哪个时间段的 active 模型。
+- 每个算法/参数组合的指标（F1 / PA-F1 / TP / FP / FN）。
+- DatasetBundle 多文件场景下哪个算法在哪个文件翻车。
+- 滚动训练窗口和 active 策略的影响。
 
-### AIOps 运维人员
+## 演示主线
 
-关注点：
-
-- 默认策略是否可理解：一天一训、最新模型自动 active。
-- 哪些日期或算法组合被 blocked。
-- 哪个算法配置更适合进入后续主流程。
-
-## MVP 演示主线
-
-### 1. Data：导入多天数据
+### 1. 数据接入
 
 演示目标：
 
-- 展示一次导入包含多天数据。
-- 展示 schema、quality、label coverage。
-- 把导入数据切成 `D1...DN` 日分区。
+- 上传 CSV / .out / npy/npz / zip 或选择内置数据集。
+- DatasetBundle 多文件自动形成 bundle，展示文件回显和 schema ok 状态。
+- 数据来源切换时预览与实验上下文同步刷新。
 
-关键叙事：
-
-- 每天都可能触发一次训练与推理循环。
-- 不合格分区在 Data 页内联展示原因，不参与自动 active 策略统计。
-
-### 2. Policy：实验前配置策略
+### 2. 数据预览
 
 演示目标：
 
-- 先配置策略，再跑实验。
-- 默认 `1 天训练一次`。
-- 默认 `最新训练模型自动成为下一时间段 active 模型`。
+- 展示行数、列数、指标列、真实异常点数和异常比例。
+- 指标曲线 + Label 异常段叠加。
+- 字段质量（角色、dtype、缺失率）和数据样例。
 
-关键叙事：
-
-- 策略在实验上下文里冻结。
-- 本阶段只是实验 active，不修改生产 active pointer。
-- 后续可把训练周期和策略门槛做成配置项。
-
-### 3. Rolling Experiment：按日滚动实验
+### 3. 实验配置
 
 演示目标：
 
-- 对每个 cutoff day `D`，使用 `<= D` 的数据训练和验证模型 `M_D`。
-- `M_D` 默认成为 `D` 之后到下一次训练前的 active 模型。
-- 使用这个 active 模型对后续时间段推理。
+- 单算法实验 / 多算法实验切换。
+- 算法参数表单（默认值、类型、含义），不再手写 JSON。
+- 批量算法范围勾选，展示任务矩阵（算法数 × 文件数）。
+- 天滚动策略配置（可选）：滚动模式、训练窗口、active 策略、质量门禁。
+- 创建实验任务：仅创建 / 创建并启动。
 
-关键叙事：
-
-```text
-cutoff = D
-train_validate_data = rows[timestamp <= D]
-active_interval = (D, next_training_day]
-prediction_data = rows[timestamp in active_interval]
-prediction_model = M_D
-```
-
-### 4. Results：比较算法效果
+### 4. 任务管理
 
 演示目标：
 
-- 展示每个算法/参数组合的多日推理结果。
-- 汇总日指标与整体指标。
-- 输出候选算法配置排行。
+- 实验任务列表：任务标识、数据标识、算法标识、类型（单算法/多算法）、状态、子任务数。
+- 子任务抽屉：algorithm × file 矩阵的 cell 级状态。
+- 启动/重跑按钮。
 
-关键叙事：
+### 5. 结果查看
 
-- 推理结果不是用最终模型扫全量数据。
-- 每条预测都必须能追溯到当时生效的 `active_model_id`。
-- 算法对比基于同样的滚动规则和同样的数据分区。
+演示目标：
 
-## 推理结果计算逻辑
-
-对每个算法/参数组合：
-
-```text
-for D in imported_days:
-    train_data = rows where timestamp <= D
-    validation_data = validation split inside train_data
-    M_D = train(algorithm, params, train_data)
-    validate(M_D, validation_data)
-
-    active_interval = (D, next_training_day]
-    set_experiment_active(M_D, active_interval)
-
-    inference_rows = rows where timestamp in active_interval
-    predictions = detect(M_D, inference_rows)
-    append prediction ledger
-```
-
-Prediction ledger 至少包含：
-
-```text
-timestamp
-algorithm
-params
-cutoff_day
-active_model_id
-predicted_label
-score
-label
-```
+- 单算法结果：TP / FP / FN / TN 数量、指标含义表、结果曲线 iframe。
+- 多算法批量结果：总排行榜、算法×文件矩阵、文件钻取、Cell 明细。
+- failed cell 不阻断其他结果展示。
 
 ## 异常旅程
 
-### 数据分区无效
+### 数据源切换
 
 ```text
-day partition invalid -> rolling cycle skipped -> Data inline reason + Results excluded items
+切换数据源 → 预览与实验上下文同步刷新 → toast 提示
 ```
 
-原因可能是 schema 不完整、label coverage 不足或数据质量低。
-
-### 缺少 active 模型覆盖
+### 算法/文件组合失败
 
 ```text
-timestamp not in any active interval -> prediction blocked -> excluded from auto-active stats
+某 cell 失败 → 该行标记 FAILED → 其余 cell 仍 COMPLETED → 结果页 failed cell 可钻取
 ```
 
-页面必须说明缺失的时间段，而不是静默跳过。
-
-### 算法组合失败
+### DatasetBundle 多文件场景
 
 ```text
-algorithm config failed on day D -> keep other configs running -> mark partial_failed
+上传 bundle → schema 一致性校验 → 不一致时 fail-fast + 展示冲突
 ```
-
-成功组合仍可参与排行，失败组合在 Rolling Experiment 当前循环提示与 Results excluded items 中展示。
