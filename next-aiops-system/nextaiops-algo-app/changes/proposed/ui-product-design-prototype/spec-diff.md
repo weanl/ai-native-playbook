@@ -2,46 +2,42 @@
 
 ## 变更前
 
-旧版设计过早引入：
+旧版设计存在两套并行方案：
 
 ```text
-Continuous Learning
-Models
-History
-manual promotion
-model version
-rollback
-active pointer 主流程
+方案 A（原 PLAN 描述）：
+Data / Policy / Rolling Experiment / Results 四页面
+
+方案 B（实际 HTML 原型）：
+数据接入 / 数据预览 / 实验配置 / 任务管理 / 结果查看 五 tab
 ```
 
-这导致原型偏离当前最需要确认的 MVP：导入数据后的滚动算法实验与 auto-active 策略计算。
+两套方案对滚动策略的定位不一致：方案 A 将 Policy 作为独立页面，方案 B 将滚动策略作为实验配置中的可选面板。
 
 ## 变更后
 
-M2-024 设计收敛为：
+以实际 HTML 原型为准，统一为 5-tab workflow：
 
 ```text
-Data
-Policy
-Rolling Experiment
-Results
+数据接入
+数据预览
+实验配置
+实验任务管理
+实验结果查看
 ```
 
-异常说明不再作为独立一级页面，而是嵌入 Data、Rolling Experiment 与 Results。
+滚动策略（day partition、cutoff day、auto-active、prediction ledger）作为**实验配置、任务管理、结果查看中的关键要素**，不是独立页面。
 
 核心流程：
 
 ```text
-Import Multi-Day Dataset
--> Build Day Partitions
--> Configure Experiment Policy
--> Freeze Experiment Context
--> for each cutoff day D:
-     train/validate M_D using rows <= D
-     set M_D active for next interval
-     infer rows in that active interval
+Import Dataset（单文件 / DatasetBundle / 多天数据）
+-> Build DatasetBundle / Day Partitions
+-> Configure Experiment Policy（含滚动策略）
+-> Create Experiment Task
+-> Rolling Train / Validate / Active / Infer Loop
 -> Prediction Ledger
--> Metrics & Ranking
+-> Metrics & Algorithm Ranking
 ```
 
 ## 新增要求
@@ -51,14 +47,14 @@ Import Multi-Day Dataset
 - 推理结果必须按 `timestamp -> active_model_id` 计算。
 - Prediction ledger 必须能追溯 `timestamp / algorithm / params / cutoff_day / active_model_id / predicted_label / score / label`。
 - drawio 使用无交叉竖向主流程，避免线框重叠。
-- 静态原型删除旧复杂页面，重建 MVP 页面。
+- 静态原型为单文件、自包含、无外部依赖。
 
 ## 非目标
 
 以下能力不进入当前原型：
 
 ```text
-模型注册
+生产模型注册
 manual promotion
 回滚
 生产 active pointer 修改

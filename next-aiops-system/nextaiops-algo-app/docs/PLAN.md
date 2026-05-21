@@ -1567,7 +1567,7 @@ M2-024 设计结论将范围收敛为滚动实验 MVP，大幅简化了后端需
 - [ ] 支持 auto-active 策略：M_D 自动成为 (D, next_training_day) 区间的 active 模型
 - [ ] 支持 prediction ledger：每条推理结果记录 active_model_id
 - [ ] 支持算法效果排行：跨日汇总 PA-F1、稳定性、退化项
-- [ ] Streamlit 滚动实验工作台：Data / Policy / Rolling Experiment / Results 四个页面
+- [ ] Streamlit 滚动实验工作台：5-tab workflow（数据接入 / 数据预览 / 实验配置 / 任务管理 / 结果查看），滚动策略嵌入实验配置/任务/结果
 - [ ] 不破坏 M0 ~ M1.6 的 run / batch / bundle / UI 既有行为
 
 ---
@@ -1621,7 +1621,7 @@ M2 MVP 推进路径：
 M2-024 ✅ (UI 设计已完成)
 M2-025 → 数据层：日分区 + 累积训练窗口 + 质量检查
 M2-026 → 执行层：滚动训练/推理循环 + auto-active + prediction ledger + 排行
-M2-027 → 工作台：Streamlit 滚动实验四页面
+M2-027 → 工作台：Streamlit 5-tab workflow
 ```
 
 ---
@@ -1633,7 +1633,7 @@ M2-027 → 工作台：Streamlit 滚动实验四页面
 | 024 | `ui-product-design-prototype` | UI 产品设计 + 可评审 HTML 原型 | 信息架构、用户旅程、页面蓝图、静态 HTML 原型、技术选型评估 | 否 |
 | 025 | `rolling-experiment-data-layer` | 滚动实验数据层 | 日分区 + 累积训练窗口 + 数据质量检查 | 否 |
 | 026 | `rolling-experiment-engine` | 滚动实验执行引擎 | 滚动训练/推理循环 + auto-active 策略 + prediction ledger + 排行 | 默认否；如需扩展 core/ 需 ADR |
-| 027 | `rolling-experiment-workbench` | 滚动实验工作台 | Streamlit 四页面：Data / Policy / Rolling Experiment / Results | 否 |
+| 027 | `rolling-experiment-workbench` | 滚动实验工作台 | Streamlit 5-tab workflow，滚动策略嵌入实验配置/任务/结果 | 否 |
 
 M2 承诺 024 ~ 027。024 已完成。
 
@@ -1654,6 +1654,9 @@ M2 承诺 024 ~ 027。024 已完成。
 >
 > 技术选型结论：M2-027 继续用 Streamlit 实现 MVP，不迁移前端。
 > MVP 范围收敛为滚动实验 + auto-active 策略模拟，不包含生产模型注册、manual promotion、回滚。
+>
+> 信息架构结论：以 5-tab workflow 承载全部能力（数据接入 / 数据预览 / 实验配置 / 实验任务管理 / 实验结果查看）。
+> 滚动策略（day partition、cutoff day、auto-active、prediction ledger）作为实验配置、任务管理、结果查看中的关键要素，不作为独立页面。
 
 ---
 
@@ -1891,21 +1894,23 @@ Proposal 通过后，implementation 应满足：
 
 ## 目标
 
-基于 M2-024 设计结论，在 Streamlit 中实现滚动实验 MVP 工作台：
+基于 M2-024 设计结论，在 Streamlit 中实现滚动实验 MVP 工作台。沿用 5-tab workflow 信息架构，滚动策略作为实验配置、任务管理、结果查看中的关键要素：
 
 ```text
-Data        — 导入多天数据，展示日分区与质量
-Policy      — 配置训练周期与 auto-active 策略
-Rolling Experiment — 滚动训练/推理循环进度与结果
-Results     — 算法排行、active timeline、排除项汇总
+数据接入        — 导入多天数据，展示日分区与质量
+数据预览        — 指标曲线、字段质量、日分区状态
+实验配置        — 配置算法与滚动策略（训练周期、active 策略、质量门禁）
+实验任务管理    — 滚动任务进度、cutoff day、active model、blocked 时间段
+实验结果查看    — 算法排行、active timeline、prediction ledger、排除项汇总
 ```
 
 ## 范围
 
 Proposal 应引用 M2-024 的设计产物，并定义实现范围：
 
-- M2-024 结论：继续使用 Streamlit
-- 实现四页面，复用 M2-025 数据层 + M2-026 执行引擎
+- M2-024 结论：继续使用 Streamlit，沿用 5-tab workflow
+- 滚动策略嵌入实验配置/任务管理/结果查看，不作为独立页面
+- 复用 M2-025 数据层 + M2-026 执行引擎
 - UI 不写业务逻辑，只调用 pipeline / viz / storage
 
 ## 非目标
@@ -1923,32 +1928,37 @@ Proposal 应引用 M2-024 的设计产物，并定义实现范围：
 
 ## 页面蓝图
 
-### Data
+### 数据接入
 
 - 导入数据（CSV / 内置数据集 / DatasetBundle）
 - Schema 与字段推断展示
 - 日分区列表：日期、行数、label coverage、质量状态
 - 无效分区内联展示排除原因
 
-### Policy
+### 数据预览
 
-- 训练周期配置（默认 1 天）
-- auto-active 策略配置（默认 latest model auto-active）
-- 质量门槛展示（后续可配置）
-- 冻结策略按钮 → 进入 Rolling Experiment
+- 指标曲线 + Label 异常段叠加
+- 字段质量（角色、dtype、缺失率）
+- 日分区质量状态与排除原因
 
-### Rolling Experiment
+### 实验配置
 
-- 算法选择（来自 REGISTRY）
-- 日循环进度：每个 cutoff day 的 train / validate / active / infer 状态
+- 算法选择（来自 REGISTRY）+ 参数表单
+- 滚动策略配置（右侧面板）：训练周期（默认 1 天）、active 策略（默认 latest model auto-active）、质量门禁
+- 冻结策略 + 创建实验任务
+
+### 实验任务管理
+
+- 滚动任务进度：每个 cutoff day 的 train / validate / active / infer 状态
 - 当前循环详情：训练数据范围、验证指标、active interval、推理数量
-- prediction ledger 预览
-- 部分失败提示
+- blocked 时间段与 partial_failed 状态
+- 启动/重跑按钮
 
-### Results
+### 实验结果查看
 
 - 算法排行表：跨日 PA-F1、稳定性、success_rate
 - active timeline：每天使用的 active 模型
+- prediction ledger 预览
 - 排除项汇总：blocked 时间段、失败算法、原因
 - 算法 × 日指标矩阵
 
@@ -1956,11 +1966,11 @@ Proposal 应引用 M2-024 的设计产物，并定义实现范围：
 
 Proposal 通过后，implementation 应满足：
 
-- [ ] Streamlit 可完整走通：导入数据 → 配置策略 → 滚动实验 → 查看排行
-- [ ] Data 页展示日分区与质量状态
-- [ ] Policy 页展示策略配置并可冻结
-- [ ] Rolling Experiment 页展示日循环进度
-- [ ] Results 页展示排行与 active timeline
+- [ ] Streamlit 可完整走通：导入数据 → 数据预览 → 配置策略 → 滚动实验 → 查看排行
+- [ ] 数据接入页展示日分区与质量状态
+- [ ] 实验配置页展示滚动策略配置并可冻结
+- [ ] 实验任务管理页展示 cutoff day 进度与 active model 状态
+- [ ] 实验结果查看页展示排行、active timeline 与 prediction ledger
 - [ ] 单算法实验页、批量实验页不回归
 - [ ] UI 不直接写业务逻辑，只调用 pipeline / storage / viz
 - [ ] `make demo` 可启动并走通滚动实验 MVP
@@ -1976,7 +1986,7 @@ M2-025 (数据层：日分区 + 累积训练窗口)
    ↓
 M2-026 (执行引擎：滚动循环 + auto-active + ledger + 排行)
    ↓
-M2-027 (工作台：Streamlit 四页面)
+M2-027 (工作台：Streamlit 5-tab workflow)
 ```
 
 M2-025 是数据链路强前置。没有日分区与训练窗口，就不应启动滚动实验引擎。
