@@ -1,41 +1,42 @@
-# M2-024 MVP 技术取舍
+# M2-024 技术取舍
 
 ## 当前结论
 
-M2-024 继续使用自包含静态 HTML 原型表达产品设计，不引入前端工程或运行时依赖。
+M2-024 使用自包含静态 HTML 原型表达产品设计，不引入前端工程或运行时依赖。
 
 原因：
 
 - 当前仍在确认滚动实验与 auto-active 策略语义。
-- 原型目标是评审用户旅程，不是落地实现。
-- 单文件 HTML 足够演示导入数据、策略配置、日循环和算法排行。
+- 原型目标是评审交互闭环，不是落地实现。
+- 单文件 HTML 足够演示数据接入、预览、配置、任务管理和结果查看。
 
-## M2-029 建议
+## 原型范围
 
-若进入实现，可优先在现有 Streamlit 工作台内实现 MVP：
+原型对齐 Streamlit UI 已实现的交互：
 
-```text
-Data Import
-Policy Config
-Rolling Experiment Runner
-Results / Ranking
-```
+- 数据接入（CSV / .out / npy/npz / zip / 内置数据集 + DatasetBundle）。
+- 数据预览（指标卡 + 曲线 + 字段质量 + 数据样例）。
+- 实验配置（单算法/多算法切换 + 参数表单 + 滚动策略可选）。
+- 任务管理（任务列表 + 子任务抽屉）。
+- 结果查看（单算法结果 / 批量排行榜 / 矩阵 / 钻取 / Cell 明细）。
 
-不建议在此时迁移 React / Next.js。
+## M2-027 建议
 
-## 实现边界
+若进入实现，在现有 Streamlit 工作台内实现 MVP，不迁移 React / Next.js。
 
-MVP 实现需要支持：
+## MVP 实现边界
+
+需要支持：
 
 - 多天数据导入与 day partition。
-- 训练周期配置，默认 1 天。
-- auto-active 策略配置，默认最新训练模型 active。
+- 训练周期配置（默认 1 天）。
+- auto-active 策略配置（默认最新训练模型 active）。
 - 按 cutoff day 滚动训练与验证。
 - 按 active interval 推理。
 - prediction ledger。
 - 算法效果排行。
 
-MVP 不实现：
+不实现：
 
 - 真实模型注册表。
 - manual promotion。
