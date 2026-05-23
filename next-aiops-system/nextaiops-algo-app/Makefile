@@ -16,6 +16,9 @@ STREAMLIT := streamlit
 SRC_DIR := src/nextaiops_algo
 TEST_DIR := tests
 
+# Ensure local package is importable without editable install
+export PYTHONPATH := src
+
 # ALG 参数用于冒烟测试（默认为空，表示跑所有算法）
 ALG ?= ""
 
