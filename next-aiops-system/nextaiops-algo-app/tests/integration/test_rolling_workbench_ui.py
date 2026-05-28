@@ -66,6 +66,7 @@ def test_rolling_policy_signature_changes_when_policy_changes() -> None:
     base = app._rolling_policy_signature(
         data_source="demo.csv",
         date_column=None,
+        synthetic_time=None,
         selected_algorithms=["three_sigma"],
         algorithm_params={"three_sigma": {}},
         policy=ExperimentPolicy(validate_ratio=0.7),
@@ -73,6 +74,7 @@ def test_rolling_policy_signature_changes_when_policy_changes() -> None:
     changed = app._rolling_policy_signature(
         data_source="demo.csv",
         date_column=None,
+        synthetic_time=None,
         selected_algorithms=["three_sigma"],
         algorithm_params={"three_sigma": {}},
         policy=ExperimentPolicy(validate_ratio=0.8),
