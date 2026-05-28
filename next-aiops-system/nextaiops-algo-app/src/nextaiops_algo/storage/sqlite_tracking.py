@@ -483,7 +483,9 @@ class SqliteTrackingStore(TrackingStore):
         conn.commit()
         conn.close()
 
-    def list_rolling_experiments(self, limit: int | None = None) -> list[dict[str, object]]:
+    def list_rolling_experiments(
+        self, limit: int | None = None, offset: int = 0
+    ) -> list[dict[str, object]]:
         """List rolling experiment summaries ordered by creation time."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -499,8 +501,8 @@ class SqliteTrackingStore(TrackingStore):
                 SELECT experiment_id, dataset_path, date_column, status, created_at
                 FROM rolling_experiments
                 ORDER BY created_at DESC
-                LIMIT ?
-            """, (limit,))
+                LIMIT ? OFFSET ?
+            """, (limit, offset))
 
         rows = cursor.fetchall()
         conn.close()
@@ -514,6 +516,15 @@ class SqliteTrackingStore(TrackingStore):
             }
             for row in rows
         ]
+
+    def count_rolling_experiments(self) -> int:
+        """Count total rolling experiments in store."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM rolling_experiments")
+        count = int(cursor.fetchone()[0])
+        conn.close()
+        return count
 
     def count_rolling_predictions(self, experiment_id: str) -> int:
         """Count prediction ledger rows for one rolling experiment."""

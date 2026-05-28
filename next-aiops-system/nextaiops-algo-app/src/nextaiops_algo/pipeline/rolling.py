@@ -22,6 +22,7 @@ from nextaiops_algo.pipeline.evaluate import evaluate
 from nextaiops_algo.pipeline.preprocess import read_to_table
 from nextaiops_algo.pipeline.rolling_data import (
     PartitionStatus,
+    SyntheticTimeConfig,
     build_day_partitions,
     cumulative_training_window,
     partition_tables,
@@ -44,13 +45,21 @@ class AlgorithmConfig(BaseModel):
 
 
 class ExperimentPolicy(BaseModel):
-    """Policy controlling rolling experiment execution."""
+    """Policy controlling rolling experiment execution.
+
+    detect_start_day: 首个 cutoff day（含）。之前的日分区仅作为训练数据，
+        不参与滚动推理。默认 None 表示从第一个有效分区开始（当前行为）。
+    segment_iou_threshold: 异常段匹配的 IoU 阈值（默认 0.5）。
+        真实段与检测段的交集占并集比例 >= 该值时，视为有效匹配。
+    """
 
     cadence: Literal["1d"] = "1d"
     validate_ratio: float = 0.7
     label_coverage_threshold: float | None = None
     auto_active: AutoActivePolicy = "latest"
     on_algorithm_error: AlgorithmErrorPolicy = "partial_failed"
+    detect_start_day: date | None = None
+    segment_iou_threshold: float = 0.5
 
     @field_validator("validate_ratio")
     @classmethod
@@ -64,6 +73,13 @@ class ExperimentPolicy(BaseModel):
     def _validate_threshold(cls, value: float | None) -> float | None:
         if value is not None and not 0 <= value <= 1:
             raise ValueError("label_coverage_threshold must be in [0, 1]")
+        return value
+
+    @field_validator("segment_iou_threshold")
+    @classmethod
+    def _validate_segment_iou(cls, value: float) -> float:
+        if not 0 < value <= 1:
+            raise ValueError("segment_iou_threshold must be in (0, 1]")
         return value
 
 
@@ -94,6 +110,7 @@ class RollingDayCycle(BaseModel):
     active_model_id: str | None = None
     error_message: str | None = None
     exclusion_reason: str | None = None
+    detect_output: Table | None = None
 
 
 class PredictionLedgerRow(BaseModel):
@@ -139,6 +156,7 @@ def run_rolling_experiment(
     *,
     date_column: str | None = None,
     policy: ExperimentPolicy | None = None,
+    synthetic_time: SyntheticTimeConfig | None = None,
     store: SqliteTrackingStore | None = None,
 ) -> RollingExperimentResult:
     """Run an offline rolling experiment over day partitions.
@@ -166,8 +184,14 @@ def run_rolling_experiment(
         source_table,
         date_column=date_column,
         threshold=resolved_policy.label_coverage_threshold,
+        synthetic_time=synthetic_time,
     )
-    partitioned = partition_tables(source_table, partitions, date_column=date_column)
+    partitioned = partition_tables(
+        source_table,
+        partitions,
+        date_column=date_column,
+        synthetic_time=synthetic_time,
+    )
     valid_days = sorted(
         p.date.isoformat()
         for p in partitions
@@ -178,7 +202,10 @@ def run_rolling_experiment(
     ledger: list[PredictionLedgerRow] = []
     blocked_intervals: list[RollingDayCycle] = []
 
+    detect_start = resolved_policy.detect_start_day
     for index, cutoff_day in enumerate(valid_days[:-1]):
+        if detect_start is not None and cutoff_day < detect_start.isoformat():
+            continue
         next_day = valid_days[index + 1]
         active_table = partitioned[next_day]
         active_start, active_end = _table_time_bounds(active_table)
@@ -216,6 +243,7 @@ def run_rolling_experiment(
                 active_table=active_table,
                 active_start=active_start,
                 active_end=active_end,
+                segment_iou_threshold=resolved_policy.segment_iou_threshold,
             )
             cycles.append(cycle)
             if cycle.status == "completed" and cycle.active_model_id is not None and active_output is not None:
@@ -259,6 +287,7 @@ def _run_algorithm_cycle(
     active_table: Table,
     active_start: datetime | None,
     active_end: datetime | None,
+    segment_iou_threshold: float = 0.5,
 ) -> tuple[RollingDayCycle, Table | None]:
     params = normalize_algorithm_params(config.name, config.params)
     specs = get_algorithm_param_specs(config.name)
@@ -275,7 +304,7 @@ def _run_algorithm_cycle(
 
         validate_output = algo.detect(validate_table)
         _validate_output(validate_table, validate_output, algo)
-        metrics = evaluate(validate_table, validate_output)
+        metrics = evaluate(validate_table, validate_output, segment_iou_threshold=segment_iou_threshold)
 
         active_output = algo.detect(active_table)
         _validate_output(active_table, active_output, algo)
@@ -291,6 +320,7 @@ def _run_algorithm_cycle(
             status="completed",
             metrics=metrics,
             active_model_id=model_id,
+            detect_output=active_output,
         ), active_output
     except Exception as exc:
         return RollingDayCycle(

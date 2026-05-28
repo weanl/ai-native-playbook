@@ -107,6 +107,21 @@ def test_partition_tables_supports_synthetic_time() -> None:
     parts = build_day_partitions(table, synthetic_time=cfg)
     pmap = partition_tables(table, parts, synthetic_time=cfg)
     assert sorted(pmap.keys()) == ["2024-01-01", "2024-01-02"]
+    assert pmap["2024-01-01"].schema.roles["__synthetic_timestamp"] == FieldRole.TIMESTAMP
+
+
+def test_build_day_partitions_supports_synthetic_row_index() -> None:
+    df = pd.DataFrame({"metric": [1.0, 2.0, 3.0], "label": [0, 0, 1]})
+    table = _table(df, {"metric": FieldRole.METRIC, "label": FieldRole.LABEL})
+    cfg = SyntheticTimeConfig(
+        time_index_column="__row_index__",
+        synthetic_start_time="2024-01-01T00:00:00Z",
+        synthetic_interval="12h",
+    )
+
+    parts = build_day_partitions(table, synthetic_time=cfg)
+
+    assert [part.date.isoformat() for part in parts] == ["2024-01-01", "2024-01-02"]
 
 
 def test_build_day_partitions_excludes_low_label_coverage() -> None:

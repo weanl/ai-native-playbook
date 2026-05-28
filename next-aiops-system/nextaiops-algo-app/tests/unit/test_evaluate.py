@@ -42,15 +42,19 @@ def _make_table(
 class TestEvaluate:
     """Tests for evaluate function."""
 
-    def test_returns_six_keys(self) -> None:
-        """evaluate() returns dict with exactly 6 metric keys."""
+    def test_returns_eight_keys(self) -> None:
+        """evaluate() returns dict with exactly 8 metric keys."""
         input_table, output_table = _make_table(
             values=[10.0, 15.0, 20.0],
             labels=[0, 1, 0],
             predicted=[0, 1, 0],
         )
         metrics = evaluate(input_table, output_table)
-        expected_keys = {"precision", "recall", "f1", "pa_precision", "pa_recall", "pa_f1"}
+        expected_keys = {
+            "precision", "recall", "f1",
+            "pa_precision", "pa_recall", "pa_f1",
+            "seg_recall", "seg_precision",
+        }
         assert set(metrics.keys()) == expected_keys
 
     def test_all_correct_predictions(self) -> None:

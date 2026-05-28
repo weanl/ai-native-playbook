@@ -9,7 +9,7 @@ from enum import StrEnum
 import pandas as pd
 from pydantic import BaseModel
 
-from nextaiops_algo.core.table import Table, TableSchema
+from nextaiops_algo.core.table import FieldRole, Table, TableSchema
 
 
 class PartitionStatus(StrEnum):
@@ -101,8 +101,12 @@ def _normalize_timestamps_to_utc(
 
 
 def _build_synthetic_timestamps(table: Table, cfg: SyntheticTimeConfig) -> pd.Series:
-    if cfg.time_index_column not in table.df.columns:
+    if cfg.time_index_column == "__row_index__":
+        idx = pd.Series(range(len(table.df)), index=table.df.index, dtype="int64")
+    elif cfg.time_index_column not in table.df.columns:
         raise ValueError(f"time_index_column '{cfg.time_index_column}' not found in table")
+    else:
+        idx = pd.to_numeric(table.df[cfg.time_index_column], errors="coerce")
 
     match = _INTERVAL_PATTERN.match(cfg.synthetic_interval)
     if not match:
@@ -115,7 +119,6 @@ def _build_synthetic_timestamps(table: Table, cfg: SyntheticTimeConfig) -> pd.Se
     if pd.isna(start):
         raise ValueError("synthetic_start_time must be a parseable datetime")
 
-    idx = pd.to_numeric(table.df[cfg.time_index_column], errors="coerce")
     if idx.isna().any():
         raise ValueError("time_index_column must be numeric and non-null")
     if not idx.is_monotonic_increasing:
@@ -226,7 +229,11 @@ def partition_tables(
         key = partition.date.isoformat()
         mask = day_series == partition.date
         part_df = table.df.loc[mask].copy()
-        results[key] = Table(df=part_df, schema=TableSchema(roles=dict(table.schema.roles)))
+        roles = dict(table.schema.roles)
+        if synthetic_time is not None and table.timestamps() is None:
+            part_df["__synthetic_timestamp"] = normalized.loc[mask].values
+            roles["__synthetic_timestamp"] = FieldRole.TIMESTAMP
+        results[key] = Table(df=part_df, schema=TableSchema(roles=roles))
     return results
 
 
