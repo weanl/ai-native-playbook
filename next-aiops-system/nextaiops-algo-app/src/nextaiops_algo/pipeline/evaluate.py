@@ -4,6 +4,50 @@ import numpy as np
 
 from nextaiops_algo.core.exceptions import SchemaValidationError
 from nextaiops_algo.core.table import FieldRole, Table
+from nextaiops_algo.pipeline.profile import anomaly_segments
+
+
+def _compute_iou(seg_a: tuple[int, int], seg_b: tuple[int, int]) -> float:
+    """Compute Intersection over Union (IoU) between two segments.
+
+    Args:
+        seg_a: (start, end) inclusive index range
+        seg_b: (start, end) inclusive index range
+
+    Returns:
+        IoU value in [0, 1]
+    """
+    a_start, a_end = seg_a
+    b_start, b_end = seg_b
+
+    intersection = max(0, min(a_end, b_end) - max(a_start, b_start) + 1)
+    if intersection == 0:
+        return 0.0
+
+    union = (a_end - a_start + 1) + (b_end - b_start + 1) - intersection
+    return intersection / union if union > 0 else 0.0
+
+
+def _segment_match_count(
+    segments_ref: list[tuple[int, int]],
+    segments_query: list[tuple[int, int]],
+    iou_threshold: float,
+) -> int:
+    """Count how many ref segments match at least one query segment (IoU >= threshold).
+
+    Args:
+        segments_ref: Reference segments to check
+        segments_query: Query segments to match against
+        iou_threshold: Minimum IoU to count as a match
+
+    Returns:
+        Number of ref segments that have at least one match
+    """
+    matched = 0
+    for ref_seg in segments_ref:
+        if any(_compute_iou(ref_seg, q_seg) >= iou_threshold for q_seg in segments_query):
+            matched += 1
+    return matched
 
 
 def point_adjust_labels(
@@ -44,19 +88,26 @@ def point_adjust_labels(
     return adjusted
 
 
-def evaluate(input_table: Table, output_table: Table) -> dict[str, float]:
+def evaluate(
+    input_table: Table,
+    output_table: Table,
+    segment_iou_threshold: float = 0.5,
+) -> dict[str, float]:
     """Calculate precision, recall, F1 and Point-Adjust variants.
 
-    Returns 6 metrics:
+    Returns 8 metrics:
     - precision, recall, f1 (standard point-wise)
     - pa_precision, pa_recall, pa_f1 (point-adjust variants)
+    - seg_recall, seg_precision (segment-level with IoU threshold)
 
     Args:
         input_table: Original input Table containing true labels.
         output_table: Algorithm output Table containing predicted labels.
+        segment_iou_threshold: Minimum IoU to consider two segments as matched (default 0.5).
 
     Returns:
-        Dict with 6 keys: precision, recall, f1, pa_precision, pa_recall, pa_f1.
+        Dict with 8 keys: precision, recall, f1, pa_precision, pa_recall, pa_f1,
+        seg_recall, seg_precision.
 
     Raises:
         SchemaValidationError: If no LABEL in input or no predicted_label in output.
@@ -132,6 +183,21 @@ def evaluate(input_table: Table, output_table: Table) -> dict[str, float]:
         else 0.0
     )
 
+    # Segment-level metrics (IoU-based)
+    true_segments = anomaly_segments(y_true_np.tolist())
+    pred_segments = anomaly_segments(y_pred_np.tolist())
+
+    seg_recall = (
+        _segment_match_count(true_segments, pred_segments, segment_iou_threshold) / len(true_segments)
+        if len(true_segments) > 0
+        else 0.0
+    )
+    seg_precision = (
+        _segment_match_count(pred_segments, true_segments, segment_iou_threshold) / len(pred_segments)
+        if len(pred_segments) > 0
+        else 0.0
+    )
+
     return {
         "precision": float(precision),
         "recall": float(recall),
@@ -139,4 +205,6 @@ def evaluate(input_table: Table, output_table: Table) -> dict[str, float]:
         "pa_precision": float(pa_precision),
         "pa_recall": float(pa_recall),
         "pa_f1": float(pa_f1),
+        "seg_recall": float(seg_recall),
+        "seg_precision": float(seg_precision),
     }

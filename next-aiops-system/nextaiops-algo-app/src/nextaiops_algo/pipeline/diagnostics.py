@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 
 from nextaiops_algo.core.exceptions import SchemaValidationError
 from nextaiops_algo.core.table import Table
+from nextaiops_algo.pipeline.evaluate import _segment_match_count
 from nextaiops_algo.pipeline.profile import anomaly_segments
 
 
@@ -21,18 +22,32 @@ class DetectionDiagnostics:
     tn: int
     true_segments: int
     hit_segments: int
+    predicted_segments: int
+    seg_recall: float
+    seg_precision: float
 
-    def to_dict(self) -> dict[str, int]:
+    def to_dict(self) -> dict[str, int | float]:
         """Return a JSON-serializable representation."""
-        return {key: int(value) for key, value in asdict(self).items()}
+        result = {}
+        for key, value in asdict(self).items():
+            if isinstance(value, float):
+                result[key] = float(value)
+            else:
+                result[key] = int(value)
+        return result
 
 
-def diagnose_detection(input_table: Table, output_table: Table) -> DetectionDiagnostics:
+def diagnose_detection(
+    input_table: Table,
+    output_table: Table,
+    segment_iou_threshold: float = 0.5,
+) -> DetectionDiagnostics:
     """Compare ground-truth labels with predicted labels.
 
     Args:
         input_table: Input table for the evaluated split, containing LABEL.
         output_table: Algorithm output table, containing ``predicted_label``.
+        segment_iou_threshold: Minimum IoU to consider two segments as matched (default 0.5).
 
     Returns:
         DetectionDiagnostics with point counts and segment hit counts.
@@ -71,8 +86,21 @@ def diagnose_detection(input_table: Table, output_table: Table) -> DetectionDiag
     tn = sum(1 for true, pred in zip(y_true, y_pred, strict=True) if true == 0 and pred == 0)
 
     segments = anomaly_segments(y_true)
+    pred_segments = anomaly_segments(y_pred)
     hit_segments = sum(
         1 for start, end in segments if any(pred == 1 for pred in y_pred[start : end + 1])
+    )
+
+    # IoU-based segment matching
+    seg_recall = (
+        _segment_match_count(segments, pred_segments, segment_iou_threshold) / len(segments)
+        if len(segments) > 0
+        else 0.0
+    )
+    seg_precision = (
+        _segment_match_count(pred_segments, segments, segment_iou_threshold) / len(pred_segments)
+        if len(pred_segments) > 0
+        else 0.0
     )
 
     return DetectionDiagnostics(
@@ -84,4 +112,7 @@ def diagnose_detection(input_table: Table, output_table: Table) -> DetectionDiag
         tn=tn,
         true_segments=len(segments),
         hit_segments=hit_segments,
+        predicted_segments=len(pred_segments),
+        seg_recall=seg_recall,
+        seg_precision=seg_precision,
     )

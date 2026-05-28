@@ -2,7 +2,7 @@
 
 import json
 import tempfile
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -27,12 +27,15 @@ from nextaiops_algo.pipeline.profile import TableProfile, profile_table
 from nextaiops_algo.pipeline.rolling import (
     AlgorithmConfig,
     ExperimentPolicy,
+    RollingDayCycle,
     RollingExperimentResult,
     run_rolling_experiment,
 )
+from nextaiops_algo.pipeline.rolling_bundle import RollingBundleResult, run_rolling_bundle
 from nextaiops_algo.pipeline.rolling_data import (
     DayPartition,
     PartitionStatus,
+    SyntheticTimeConfig,
     build_day_partitions,
 )
 from nextaiops_algo.pipeline.run import run_experiment
@@ -52,6 +55,8 @@ def _get_input_table() -> tuple[bool, Table | None, str, DatasetBundle | None]:
     """Common data source selector shared by single and batch pages.
 
     Returns (upload_ok, table, source_description, optional_bundle).
+    Caches loaded Table/Bundle in session_state to avoid re-reading on every rerun
+    (e.g. when a radio/selectbox in another tab triggers a Streamlit rerun).
     """
     input_disabled = _is_batch_run_in_progress()
     data_source = st.sidebar.selectbox(
@@ -62,6 +67,39 @@ def _get_input_table() -> tuple[bool, Table | None, str, DatasetBundle | None]:
     if input_disabled:
         st.sidebar.caption("批量实验运行中，数据输入已临时锁定。")
 
+    def _cache_hit(
+        source: str,
+        file_names: tuple[str, ...] | None = None,
+    ) -> tuple[bool, Table | None, str, DatasetBundle | None] | None:
+        """Return cached result if data source + files unchanged, else None."""
+        prev_source = st.session_state.get("_input_cache_source")
+        prev_names = st.session_state.get("_input_cache_names")
+        if prev_source == source and prev_names == file_names and prev_source is not None:
+            return (
+                st.session_state.get("_input_cache_ok", False),
+                st.session_state.get("_input_cache_table"),
+                st.session_state.get("_input_cache_desc", ""),
+                st.session_state.get("_input_cache_bundle"),
+            )
+        return None
+
+    def _cache_store(
+        ok: bool,
+        table: Table | None,
+        desc: str,
+        bundle: DatasetBundle | None,
+        source: str,
+        file_names: tuple[str, ...] | None = None,
+    ) -> tuple[bool, Table | None, str, DatasetBundle | None]:
+        """Store result in session_state cache and return it."""
+        st.session_state["_input_cache_ok"] = ok
+        st.session_state["_input_cache_table"] = table
+        st.session_state["_input_cache_desc"] = desc
+        st.session_state["_input_cache_bundle"] = bundle
+        st.session_state["_input_cache_source"] = source
+        st.session_state["_input_cache_names"] = file_names
+        return ok, table, desc, bundle
+
     if data_source == "上传 CSV":
         uploaded_files = st.file_uploader(
             "上传指标数据 CSV",
@@ -71,17 +109,23 @@ def _get_input_table() -> tuple[bool, Table | None, str, DatasetBundle | None]:
             disabled=input_disabled,
         )
         if not uploaded_files:
-            return False, None, "", None
+            return _cache_store(False, None, "", None, data_source, None)
+        file_names = tuple(f.name for f in uploaded_files)
+        cached = _cache_hit(data_source, file_names)
+        if cached is not None:
+            return cached
         upload_paths = _save_uploaded_files(cast(list[Any], uploaded_files), "csv_upload_paths")
         try:
             if len(upload_paths) == 1:
                 table = read_csv_to_table(upload_paths[0])
-                return True, table, str(upload_paths[0]), None
+                return _cache_store(True, table, str(upload_paths[0]), None, data_source, file_names)
             bundle = read_dataset_bundle(upload_paths, dataset_id=_bundle_dataset_id(upload_paths))
-            return True, bundle.files[0].table, bundle.dataset_id, bundle
+            return _cache_store(
+                True, bundle.files[0].table, bundle.dataset_id, bundle, data_source, file_names
+            )
         except SchemaValidationError as e:
             st.error(f"数据格式校验失败：{e}")
-            return False, None, "", None
+            return _cache_store(False, None, "", None, data_source, file_names)
 
     elif data_source == "上传 .out":
         uploaded_files = st.file_uploader(
@@ -92,17 +136,23 @@ def _get_input_table() -> tuple[bool, Table | None, str, DatasetBundle | None]:
             disabled=input_disabled,
         )
         if not uploaded_files:
-            return False, None, "", None
+            return _cache_store(False, None, "", None, data_source, None)
+        file_names = tuple(f.name for f in uploaded_files)
+        cached = _cache_hit(data_source, file_names)
+        if cached is not None:
+            return cached
         upload_paths = _save_uploaded_files(cast(list[Any], uploaded_files), "out_upload_paths")
         try:
             if len(upload_paths) == 1:
                 table = read_to_table(upload_paths[0])
-                return True, table, str(upload_paths[0]), None
+                return _cache_store(True, table, str(upload_paths[0]), None, data_source, file_names)
             bundle = read_dataset_bundle(upload_paths, dataset_id=_bundle_dataset_id(upload_paths))
-            return True, bundle.files[0].table, bundle.dataset_id, bundle
+            return _cache_store(
+                True, bundle.files[0].table, bundle.dataset_id, bundle, data_source, file_names
+            )
         except SchemaValidationError as e:
             st.error(f"数据格式校验失败：{e}")
-            return False, None, "", None
+            return _cache_store(False, None, "", None, data_source, file_names)
 
     elif data_source == "上传 npy/npz":
         uploaded_files = st.file_uploader(
@@ -113,17 +163,23 @@ def _get_input_table() -> tuple[bool, Table | None, str, DatasetBundle | None]:
             disabled=input_disabled,
         )
         if not uploaded_files:
-            return False, None, "", None
+            return _cache_store(False, None, "", None, data_source, None)
+        file_names = tuple(f.name for f in uploaded_files)
+        cached = _cache_hit(data_source, file_names)
+        if cached is not None:
+            return cached
         upload_paths = _save_uploaded_files(cast(list[Any], uploaded_files), "npy_upload_paths")
         try:
             if len(upload_paths) == 1:
                 table = read_to_table(upload_paths[0])
-                return True, table, str(upload_paths[0]), None
+                return _cache_store(True, table, str(upload_paths[0]), None, data_source, file_names)
             bundle = read_dataset_bundle(upload_paths, dataset_id=_bundle_dataset_id(upload_paths))
-            return True, bundle.files[0].table, bundle.dataset_id, bundle
+            return _cache_store(
+                True, bundle.files[0].table, bundle.dataset_id, bundle, data_source, file_names
+            )
         except SchemaValidationError as e:
             st.error(f"数据格式校验失败：{e}")
-            return False, None, "", None
+            return _cache_store(False, None, "", None, data_source, file_names)
 
     elif data_source == "上传 zip":
         uploaded_file = st.file_uploader(
@@ -133,7 +189,11 @@ def _get_input_table() -> tuple[bool, Table | None, str, DatasetBundle | None]:
             disabled=input_disabled,
         )
         if uploaded_file is None:
-            return False, None, "", None
+            return _cache_store(False, None, "", None, data_source, None)
+        file_names = (uploaded_file.name,)
+        cached = _cache_hit(data_source, file_names)
+        if cached is not None:
+            return cached
         zip_path = _save_uploaded_file(cast(Any, uploaded_file), "zip_upload_path")
         extract_dir = Path(tempfile.mkdtemp(prefix="nextaiops_zip_"))
         try:
@@ -142,18 +202,23 @@ def _get_input_table() -> tuple[bool, Table | None, str, DatasetBundle | None]:
                 extract_dir=extract_dir,
                 dataset_id=Path(uploaded_file.name).stem,
             )
-            return True, bundle.files[0].table, bundle.dataset_id, bundle
+            return _cache_store(
+                True, bundle.files[0].table, bundle.dataset_id, bundle, data_source, file_names
+            )
         except SchemaValidationError as e:
             st.error(f"数据格式校验失败：{e}")
-            return False, None, "", None
+            return _cache_store(False, None, "", None, data_source, file_names)
 
     else:
+        cached = _cache_hit(data_source)
+        if cached is not None:
+            return cached
         try:
             table = get_builtin(data_source).load()
-            return True, table, data_source, None
+            return _cache_store(True, table, data_source, None, data_source)
         except Exception as e:
             st.error(f"加载内置数据集失败：{e}")
-            return False, None, "", None
+            return _cache_store(False, None, "", None, data_source)
 
 
 def _save_uploaded_files(uploaded_files: list[Any], state_key: str) -> list[Path]:
@@ -421,12 +486,14 @@ def _render_single_result(result_artifacts_path: str, metrics: dict[str, float])
 def _metric_explanations() -> list[tuple[str, str, str]]:
     """Return metric display names and explanations."""
     return [
-        ("precision", "Precision", "检出的异常中有多少是真的，越高说明误报越少"),
-        ("recall", "Recall", "真实异常中有多少被检出，越高说明漏报越少"),
-        ("f1", "F1", "Precision 与 Recall 的综合平衡"),
-        ("pa_precision", "PA-Precision", "按异常段调整后的 Precision"),
-        ("pa_recall", "PA-Recall", "按异常段调整后的 Recall"),
-        ("pa_f1", "PA-F1", "按异常段调整后的 F1，更贴近运维场景"),
+        ("precision", "Precision（点级）", "检出的异常点中有多少是真的，越高说明误报越少"),
+        ("recall", "Recall（点级）", "真实异常点中有多少被检出，越高说明漏报越少"),
+        ("f1", "F1（点级）", "Precision 与 Recall 的调和平均"),
+        ("pa_precision", "PA-Precision（段调整）", "按异常段调整后的 Precision，命中段内任意一点即视为全段命中"),
+        ("pa_recall", "PA-Recall（段调整）", "按异常段调整后的 Recall"),
+        ("pa_f1", "PA-F1（段调整）", "按异常段调整后的 F1，更贴近运维场景"),
+        ("seg_recall", "段召回率", "真实异常段中被有效检测出的比例（基于 IoU 阈值匹配）"),
+        ("seg_precision", "段精确率", "检测出的异常段中有多少与真实段有效匹配（基于 IoU 阈值）"),
     ]
 
 
@@ -1126,6 +1193,7 @@ def _rolling_policy_signature(
     *,
     data_source: str,
     date_column: str | None,
+    synthetic_time: SyntheticTimeConfig | None,
     selected_algorithms: list[str],
     algorithm_params: dict[str, dict[str, object]],
     policy: ExperimentPolicy,
@@ -1134,6 +1202,9 @@ def _rolling_policy_signature(
     payload = {
         "data_source": data_source,
         "date_column": date_column,
+        "synthetic_time": None
+        if synthetic_time is None
+        else synthetic_time.model_dump(mode="json"),
         "selected_algorithms": selected_algorithms,
         "algorithm_params": algorithm_params,
         "policy": policy.model_dump(mode="json"),
@@ -1178,19 +1249,41 @@ def _render_rolling_workbench(
 
         st.caption(f"当前数据源：{data_source}")
         if input_bundle is not None:
-            st.warning(
-                "当前输入是 DatasetBundle。M2-027 MVP 可展示首个文件的分区诊断，"
-                "但滚动实验执行仍需单文件路径或内置数据集名。"
-            )
+            st.info(f"DatasetBundle：共 {input_bundle.file_count} 个文件，将对每个文件独立运行滚动实验。")
 
-        date_options = ["自动识别"] + list(input_table.df.columns)
-        selected_date = st.selectbox(
-            "日期/时间列",
-            options=date_options,
-            help="默认使用 schema 中的 TIMESTAMP 角色；如需覆盖，可选择具体列。",
-            key="rolling_date_column",
+        time_mode = st.radio(
+            "时间来源",
+            options=["自动识别 timestamp", "选择日期/时间列", "用行号合成时间"],
+            horizontal=True,
+            key="rolling_time_mode",
         )
-        date_column = None if selected_date == "自动识别" else str(selected_date)
+        date_column: str | None = None
+        synthetic_time: SyntheticTimeConfig | None = None
+        if time_mode == "选择日期/时间列":
+            date_column = str(st.selectbox(
+                "日期/时间列",
+                options=list(input_table.df.columns),
+                help="覆盖 schema 中的 TIMESTAMP 角色，用指定列构建日分区。",
+                key="rolling_date_column",
+            ))
+        elif time_mode == "用行号合成时间":
+            st.caption("适用于 TSB-AD-U 这类只有 value/label、没有 timestamp 的单序列数据。")
+            synthetic_start_time = st.text_input(
+                "合成起始时间",
+                value="2024-01-01T00:00:00Z",
+                key="rolling_synthetic_start_time",
+            )
+            synthetic_interval = st.text_input(
+                "行间隔",
+                value="1min",
+                help="格式：Ns / Nmin / Nh，例如 30s、1min、1h。",
+                key="rolling_synthetic_interval",
+            )
+            synthetic_time = SyntheticTimeConfig(
+                time_index_column="__row_index__",
+                synthetic_start_time=synthetic_start_time,
+                synthetic_interval=synthetic_interval,
+            )
 
         label_threshold = st.number_input(
             "label coverage 门槛",
@@ -1206,6 +1299,7 @@ def _render_rolling_workbench(
                 input_table,
                 date_column=date_column,
                 threshold=label_threshold,
+                synthetic_time=synthetic_time,
             )
         except ValueError as e:
             st.error(f"无法构建日分区：{e}")
@@ -1213,6 +1307,8 @@ def _render_rolling_workbench(
             return
 
         st.session_state["rolling_partitions"] = partitions
+        st.session_state["rolling_date_column_value"] = date_column
+        st.session_state["rolling_synthetic_time"] = synthetic_time
         valid_partitions = _rolling_valid_partitions(partitions)
         summary_cols = st.columns(4)
         summary_cols[0].metric("总分区", len(partitions))
@@ -1232,7 +1328,32 @@ def _render_rolling_workbench(
         if not upload_ok or input_table is None:
             st.info("请先在侧边栏选择或上传数据。")
         else:
-            _render_data_preview(input_table)
+            preview_table = input_table
+            if input_bundle is not None and input_bundle.file_count > 1:
+                total_pages = (input_bundle.file_count + 4) // 5
+                page = st.number_input(
+                    "文件分页",
+                    min_value=1,
+                    max_value=total_pages,
+                    value=1,
+                    step=1,
+                    format="%d",
+                    help=f"共 {input_bundle.file_count} 个文件，每页 5 个",
+                    key="rolling_preview_page",
+                )
+                start = (int(page) - 1) * 5
+                end = min(start + 5, input_bundle.file_count)
+                page_files = input_bundle.files[start:end]
+                selected_name = st.radio(
+                    f"选择文件（第 {start + 1}~{end} / {input_bundle.file_count} 个）",
+                    options=[f.name for f in page_files],
+                    key="rolling_preview_file",
+                    horizontal=True,
+                )
+                preview_table = next(
+                    f.table for f in input_bundle.files if f.name == selected_name
+                )
+            _render_data_preview(preview_table)
             partitions = cast(list[DayPartition], st.session_state.get("rolling_partitions", []))
             if partitions:
                 st.subheader("日分区质量")
@@ -1248,7 +1369,10 @@ def _render_rolling_workbench(
             return
 
         algo_names = list_algorithms()
-        default_algos = algo_names[: min(2, len(algo_names))]
+        preferred_defaults = ["iqr", "three_sigma"]
+        default_algos = [name for name in preferred_defaults if name in algo_names]
+        if not default_algos:
+            default_algos = algo_names[: min(2, len(algo_names))]
         selected_algorithms = st.multiselect(
             "选择算法",
             options=algo_names,
@@ -1284,9 +1408,39 @@ def _render_rolling_workbench(
             step=0.05,
             key=validate_key,
         )
+
+        # 检测起始日选择器
+        partitions = cast(list[DayPartition], st.session_state.get("rolling_partitions", []))
+        valid_partitions = _rolling_valid_partitions(partitions)
+        detect_start_day: date | None = None
+        if len(valid_partitions) >= 2:
+            valid_dates = [p.date for p in valid_partitions]
+            # 默认选择第二个有效分区（第二天），之前的数据仅作为训练数据
+            default_idx = min(1, len(valid_dates) - 1)
+            selected_date = st.selectbox(
+                "检测起始日（首个 cutoff day）",
+                options=valid_dates,
+                index=default_idx,
+                help="之前的日分区仅作为训练数据，不参与滚动推理。",
+                key="rolling_detect_start_day",
+            )
+            detect_start_day = selected_date
+
+        segment_iou_threshold = st.slider(
+            "异常段匹配 IoU 阈值",
+            min_value=0.01,
+            max_value=1.0,
+            value=0.5,
+            step=0.01,
+            help="真实异常段与检测异常段的交集占并集比例 ≥ 该值时，视为有效匹配。用于计算段级召回率和精确率。",
+            key="rolling_segment_iou_threshold",
+        )
+
         policy = ExperimentPolicy(
             validate_ratio=float(validate_ratio),
             label_coverage_threshold=float(st.session_state.get(threshold_key, 0.0)),
+            detect_start_day=detect_start_day,
+            segment_iou_threshold=float(segment_iou_threshold),
         )
 
         policy_cols = st.columns(3)
@@ -1294,12 +1448,15 @@ def _render_rolling_workbench(
         policy_cols[1].metric("auto_active", policy.auto_active)
         policy_cols[2].metric("错误策略", policy.on_algorithm_error)
 
-        date_column = cast(str | None, st.session_state.get("rolling_date_column"))
-        if date_column == "自动识别":
-            date_column = None
+        date_column = cast(str | None, st.session_state.get("rolling_date_column_value"))
+        synthetic_time = cast(
+            SyntheticTimeConfig | None,
+            st.session_state.get("rolling_synthetic_time"),
+        )
         signature = _rolling_policy_signature(
             data_source=data_source,
             date_column=date_column,
+            synthetic_time=synthetic_time,
             selected_algorithms=selected_algorithms,
             algorithm_params=algorithm_params,
             policy=policy,
@@ -1315,6 +1472,7 @@ def _render_rolling_workbench(
             st.session_state["rolling_frozen_payload"] = {
                 "data_source": data_source,
                 "date_column": date_column,
+                "synthetic_time": synthetic_time,
                 "algorithms": selected_algorithms,
                 "algorithm_params": algorithm_params,
                 "policy": policy,
@@ -1330,15 +1488,14 @@ def _render_rolling_workbench(
             st.session_state.get("rolling_frozen_payload"),
         )
         run_disabled = (
-            input_bundle is not None
-            or frozen_payload is None
+            frozen_payload is None
             or len(valid_partitions) < 2
             or not upload_ok
         )
-        if input_bundle is not None:
-            st.info("DatasetBundle 暂不支持直接执行滚动实验，请选择单文件或内置数据集。")
         if frozen_payload is None:
             st.info("请先在实验配置 tab 冻结策略。")
+        if input_bundle is not None:
+            st.info(f"将对 {input_bundle.file_count} 个文件分别运行滚动实验。")
 
         if st.button("运行滚动实验", type="primary", disabled=run_disabled) and frozen_payload is not None:
             frozen_params = cast(
@@ -1353,41 +1510,100 @@ def _render_rolling_workbench(
                 )
                 for algorithm_name in frozen_algorithms
             ]
-            with st.spinner("滚动实验运行中..."):
+            frozen_policy = cast(ExperimentPolicy, frozen_payload["policy"])
+            frozen_date_column = cast(str | None, frozen_payload["date_column"])
+            frozen_synthetic_time = cast(
+                SyntheticTimeConfig | None,
+                frozen_payload["synthetic_time"],
+            )
+
+            if input_bundle is not None:
+                # 多文件模式：对每个文件独立运行滚动实验
+                progress_placeholder = st.empty()
+
+                def bundle_progress(current: int, total: int, file_name: str) -> None:
+                    progress_placeholder.info(f"[{current}/{total}] 正在处理 {file_name}...")
+
                 try:
-                    run_result = run_rolling_experiment(
-                        cast(str, frozen_payload["data_source"]),
+                    bundle_result = run_rolling_bundle(
+                        input_bundle,
                         algorithms=algorithms,
-                        date_column=cast(str | None, frozen_payload["date_column"]),
-                        policy=cast(ExperimentPolicy, frozen_payload["policy"]),
+                        date_column=frozen_date_column,
+                        policy=frozen_policy,
+                        synthetic_time=frozen_synthetic_time,
+                        progress_callback=bundle_progress,
                     )
-                    st.session_state["last_rolling_result"] = run_result
+                    progress_placeholder.empty()
+                    st.session_state["last_rolling_bundle_result"] = bundle_result
+                    # 同时存储第一个文件的结果作为默认展示
+                    first_success = next(
+                        (cell for cell in bundle_result.cells if cell.result is not None),
+                        None,
+                    )
+                    if first_success is not None:
+                        st.session_state["last_rolling_result"] = first_success.result
+                        st.session_state["rolling_bundle_selected_file"] = first_success.file_name
                     st.success(
-                        f"滚动实验完成：experiment_id={run_result.experiment.experiment_id}，"
-                        f"状态={run_result.experiment.status}"
+                        f"滚动实验完成：{len(bundle_result.cells)} 个文件，"
+                        f"成功 {sum(1 for c in bundle_result.cells if c.result is not None)} 个"
                     )
                 except Exception as e:
+                    progress_placeholder.empty()
                     st.error(f"滚动实验失败：{e}")
+            else:
+                # 单文件模式
+                with st.spinner("滚动实验运行中..."):
+                    try:
+                        run_result = run_rolling_experiment(
+                            cast(str, frozen_payload["data_source"]),
+                            algorithms=algorithms,
+                            date_column=frozen_date_column,
+                            policy=frozen_policy,
+                            synthetic_time=frozen_synthetic_time,
+                        )
+                        st.session_state["last_rolling_result"] = run_result
+                        st.session_state.pop("last_rolling_bundle_result", None)
+                        st.success(
+                            f"滚动实验完成：experiment_id={run_result.experiment.experiment_id}，"
+                            f"状态={run_result.experiment.status}"
+                        )
+                    except Exception as e:
+                        st.error(f"滚动实验失败：{e}")
 
-        task_result = cast(
+        # 展示任务状态
+        display_bundle_result = cast(
+            RollingBundleResult | None,
+            st.session_state.get("last_rolling_bundle_result"),
+        )
+        display_task_result = cast(
             RollingExperimentResult | None,
             st.session_state.get("last_rolling_result"),
         )
-        if task_result is not None:
-            _render_rolling_task_summary(task_result)
+        if display_bundle_result is not None:
+            _render_rolling_bundle_task_summary(display_bundle_result)
+        elif display_task_result is not None:
+            _render_rolling_task_summary(display_task_result)
 
     with result_tab:
         st.subheader("实验结果查看")
+        result_bundle = cast(
+            RollingBundleResult | None,
+            st.session_state.get("last_rolling_bundle_result"),
+        )
         display_result = cast(
             RollingExperimentResult | None,
             st.session_state.get("last_rolling_result"),
         )
         partitions = cast(list[DayPartition], st.session_state.get("rolling_partitions", []))
-        if display_result is None:
+
+        if result_bundle is not None:
+            # 多文件模式：跨文件总览 + 单文件钻取
+            _render_rolling_bundle_result(result_bundle, partitions, input_bundle)
+        elif display_result is None:
             st.info("运行滚动实验后将在这里展示排行、active timeline 和 prediction ledger。")
             _render_rolling_history()
         else:
-            _render_rolling_result(display_result, partitions)
+            _render_rolling_result(display_result, partitions, input_table)
 
 
 def _render_rolling_task_summary(result: RollingExperimentResult) -> None:
@@ -1407,9 +1623,475 @@ def _render_rolling_task_summary(result: RollingExperimentResult) -> None:
         st.warning("存在 blocked 或 partial_failed cycle，请在结果页查看排除项汇总。")
 
 
+def _render_rolling_bundle_task_summary(bundle_result: RollingBundleResult) -> None:
+    """Render rolling bundle task summary showing per-file status."""
+    st.subheader("多文件滚动实验状态")
+    summary_cols = st.columns(4)
+    success_count = sum(1 for c in bundle_result.cells if c.result is not None)
+    summary_cols[0].metric("bundle_id", bundle_result.bundle_id)
+    summary_cols[1].metric("文件总数", len(bundle_result.cells))
+    summary_cols[2].metric("成功", success_count)
+    summary_cols[3].metric("失败/部分失败", len(bundle_result.cells) - success_count)
+
+    rows: list[dict[str, str]] = []
+    for cell in bundle_result.cells:
+        row: dict[str, str] = {
+            "文件": cell.file_name,
+            "状态": cell.status,
+        }
+        if cell.result is not None:
+            row["cycles"] = str(len(cell.result.cycles))
+            row["ledger rows"] = str(len(cell.result.ledger))
+        else:
+            row["cycles"] = "-"
+            row["ledger rows"] = "-"
+            row["错误信息"] = cell.error_message or ""
+        rows.append(row)
+
+    _render_filterable_dataframe(pd.DataFrame(rows), key=f"bundle_cells_{bundle_result.bundle_id}")
+
+
+def _render_rolling_bundle_result(
+    bundle_result: RollingBundleResult,
+    partitions: list[DayPartition],
+    input_bundle: DatasetBundle | None,
+) -> None:
+    """Render rolling bundle result with cross-file overview and per-file drill-down."""
+    overview_tab, file_tab = st.tabs(["跨文件总览", "单文件钻取"])
+
+    with overview_tab:
+        _render_rolling_bundle_overview(bundle_result)
+
+    with file_tab:
+        _render_rolling_bundle_file_drilldown(bundle_result, partitions, input_bundle)
+
+
+def _render_rolling_bundle_overview(bundle_result: RollingBundleResult) -> None:
+    """Render cross-file overview: aggregated leaderboard and algorithm × file heatmap."""
+    st.subheader("算法跨文件汇总")
+
+    if not bundle_result.algorithm_metrics:
+        st.warning("暂无聚合指标。")
+    else:
+        # Aggregated leaderboard
+        rows = []
+        for algo in bundle_result.algorithms:
+            metrics = bundle_result.algorithm_metrics.get(algo.name, {})
+            rows.append({
+                "算法": algo.name,
+                "Mean PA-F1": f"{metrics.get('mean_pa_f1', 0):.3f}",
+                "Median PA-F1": f"{metrics.get('median_pa_f1', 0):.3f}",
+                "Min PA-F1": f"{metrics.get('min_pa_f1', 0):.3f}",
+                "Max PA-F1": f"{metrics.get('max_pa_f1', 0):.3f}",
+                "文件成功率": f"{metrics.get('success_rate', 0):.0%}",
+                "成功文件数": int(metrics.get("file_success_count", 0)),
+            })
+        _render_filterable_dataframe(
+            pd.DataFrame(rows).sort_values("Mean PA-F1", ascending=False),
+            key=f"bundle_leaderboard_{bundle_result.bundle_id}",
+        )
+
+    # Algorithm × File heatmap
+    st.subheader("算法 × 文件 PA-F1 热力图")
+    algo_names = [algo.name for algo in bundle_result.algorithms]
+    heatmap_data = []
+    for algo_name in algo_names:
+        row_data: dict[str, Any] = {"算法": algo_name}
+        for cell in bundle_result.cells:
+            if cell.result is not None:
+                matching = [r for r in cell.result.leaderboard if r.algorithm_name == algo_name]
+                if matching:
+                    row_data[cell.file_name] = matching[0].mean_pa_f1
+                else:
+                    row_data[cell.file_name] = None
+            else:
+                row_data[cell.file_name] = None
+        heatmap_data.append(row_data)
+
+    heatmap_df = pd.DataFrame(heatmap_data).set_index("算法")
+    st.dataframe(
+        heatmap_df.style.format("{:.3f}", na_rep="-").background_gradient(
+            cmap="RdYlGn", axis=None, vmin=0, vmax=1
+        ),
+        width="stretch",
+    )
+
+
+def _render_rolling_bundle_file_drilldown(
+    bundle_result: RollingBundleResult,
+    partitions: list[DayPartition],
+    input_bundle: DatasetBundle | None,
+) -> None:
+    """Render per-file drill-down with file selector."""
+    success_cells = [cell for cell in bundle_result.cells if cell.result is not None]
+    if not success_cells:
+        st.warning("没有成功完成的文件结果。")
+        return
+
+    file_names = [cell.file_name for cell in success_cells]
+    selected_file = st.selectbox(
+        "选择文件查看详情",
+        options=file_names,
+        key="rolling_bundle_file_selector",
+    )
+
+    if selected_file is None:
+        return
+
+    selected_cell = next(
+        (cell for cell in success_cells if cell.file_name == selected_file),
+        None,
+    )
+    if selected_cell is None or selected_cell.result is None:
+        st.warning(f"文件 {selected_file} 的结果不可用。")
+        return
+
+    # Get the corresponding input table for this file (if bundle available)
+    file_input_table: Table | None = None
+    if input_bundle is not None:
+        for dataset_file in input_bundle.files:
+            if dataset_file.name == selected_file:
+                file_input_table = dataset_file.table
+                break
+
+    st.caption(f"文件：{selected_file}")
+    _render_rolling_result(selected_cell.result, partitions, file_input_table)
+
+
+def _render_rolling_detect_figure(
+    cycles: list[RollingDayCycle],
+    ledger_rows: list[Any],
+    source_table: Table | None = None,
+    detect_start_day: str | None = None,
+) -> None:
+    """Render concatenated Plotly time-series chart with training + detection periods."""
+    import plotly.graph_objects as go
+
+    valid = [c for c in cycles if c.detect_output is not None]
+    if not valid:
+        st.warning("该算法无可可视化的检测 cycle。")
+        return
+
+    # Use first valid cycle to determine metric column
+    first_output = valid[0].detect_output
+    assert first_output is not None
+    metric_cols = [col for col in first_output.schema.columns_of(FieldRole.METRIC) if "." not in col]
+    if not metric_cols:
+        st.warning("检测输出中无指标列。")
+        return
+    metric = metric_cols[0]
+
+    # ── 训练期数据 ──
+    train_x: list[Any] = []
+    train_y: list[float] = []
+    train_true: list[int | None] = []
+    if source_table is not None and metric in source_table.df.columns:
+        src_df = source_table.df.copy()
+        src_ts = source_table.timestamps()
+        src_labels = source_table.labels()
+        # 确定训练期行范围：detect_start_day 之前的数据
+        if detect_start_day is not None:
+            if src_ts is not None:
+                try:
+                    parsed_ts = pd.to_datetime(src_ts, utc=True, errors="coerce")
+                    cutoff = pd.Timestamp(detect_start_day, tz="UTC")
+                    train_mask = parsed_ts < cutoff
+                    train_df = src_df.loc[train_mask]
+                    train_ts = parsed_ts.loc[train_mask]
+                    train_labels_series = src_labels.loc[train_mask] if src_labels is not None else None
+                    for idx_pos, (_i, row) in enumerate(train_df.iterrows()):
+                        train_x.append(train_ts.iloc[idx_pos] if train_ts is not None else idx_pos)
+                        train_y.append(float(row[metric]))
+                        train_true.append(
+                            int(train_labels_series.iloc[idx_pos])
+                            if train_labels_series is not None and not pd.isna(train_labels_series.iloc[idx_pos])
+                            else None
+                        )
+                except Exception:
+                    pass  # 解析失败则跳过训练期
+            else:
+                # 无 timestamp 列：用 detect_output 的合成 timestamp 反推训练期 x 轴
+                first_detect_ts = first_output.timestamps()
+                if first_detect_ts is not None and len(first_detect_ts) >= 2:
+                    # 从 detect_output 推断合成 interval
+                    ts0 = pd.Timestamp(first_detect_ts.iloc[0])
+                    ts1 = pd.Timestamp(first_detect_ts.iloc[1])
+                    interval = ts1 - ts0
+                    # 训练行数 = 总行数 - 所有检测行数
+                    total_detect_rows = sum(
+                        len(c.detect_output.df) for c in valid if c.detect_output is not None
+                    )
+                    train_rows = max(0, len(src_df) - total_detect_rows)
+                    # 训练期 timestamp = first_detect_ts 向前推 train_rows 个 interval
+                    for i in range(train_rows):
+                        train_x.append(ts0 - (train_rows - i) * interval)
+                        train_y.append(float(src_df.iloc[i][metric]))
+                        train_true.append(
+                            int(src_labels.iloc[i])
+                            if src_labels is not None and not pd.isna(src_labels.iloc[i])
+                            else None
+                        )
+                else:
+                    # 无合成 timestamp 可用，降级为整数 index
+                    total_detect_rows = sum(
+                        len(c.detect_output.df) for c in valid if c.detect_output is not None
+                    )
+                    train_rows = max(0, len(src_df) - total_detect_rows)
+                    for i in range(train_rows):
+                        train_x.append(i)
+                        train_y.append(float(src_df.iloc[i][metric]))
+                        train_true.append(
+                            int(src_labels.iloc[i])
+                            if src_labels is not None and not pd.isna(src_labels.iloc[i])
+                            else None
+                        )
+
+    # ── 检测期数据 ──
+    # Build positional lookup by iterating ledger per cutoff_day
+    from collections import defaultdict
+    ledger_by_day: dict[str, list[Any]] = defaultdict(list)
+    for row in ledger_rows:
+        ledger_by_day[str(row.cutoff_day)].append(row)
+
+    detect_x: list[Any] = []
+    detect_y: list[float] = []
+    detect_upper: list[float | None] = []
+    detect_lower: list[float | None] = []
+    detect_pred: list[int] = []
+    detect_true: list[int | None] = []
+    detect_score: list[float | None] = []
+    detect_day: list[str] = []
+
+    for cycle in valid:
+        output = cycle.detect_output
+        assert output is not None
+        day_str = str(cycle.cutoff_day)
+        day_ledger = ledger_by_day.get(day_str, [])
+
+        timestamps = output.timestamps()
+        ts = timestamps.reset_index(drop=True) if timestamps is not None else pd.Series(range(len(output.df)))
+        y = output.df[metric].reset_index(drop=True)
+        pred = (
+            output.df["predicted_label"].reset_index(drop=True).fillna(0).astype(int)
+            if "predicted_label" in output.df.columns
+            else pd.Series([0] * len(output.df))
+        )
+
+        upper_col = f"{metric}.threshold_upper"
+        lower_col = f"{metric}.threshold_lower"
+        score_col = f"{metric}.anomaly_score"
+        upper = output.df[upper_col].reset_index(drop=True) if upper_col in output.df.columns else None
+        lower = output.df[lower_col].reset_index(drop=True) if lower_col in output.df.columns else None
+        score = output.df[score_col].reset_index(drop=True) if score_col in output.df.columns else None
+
+        for i in range(len(output.df)):
+            detect_x.append(ts.iloc[i])
+            detect_y.append(float(y.iloc[i]))
+            detect_upper.append(float(upper.iloc[i]) if upper is not None else None)
+            detect_lower.append(float(lower.iloc[i]) if lower is not None else None)
+            detect_pred.append(int(pred.iloc[i]))
+            detect_score.append(float(score.iloc[i]) if score is not None else None)
+            detect_day.append(day_str)
+            if i < len(day_ledger):
+                detect_true.append(day_ledger[i].label)
+            else:
+                detect_true.append(None)
+
+    has_train = len(train_x) > 0
+    has_timestamps = (
+        (first_output.timestamps() is not None) if valid else False
+    )
+
+    fig = go.Figure()
+
+    # ── 训练期渲染 ──
+    if has_train:
+        train_x_series = pd.Series(train_x)
+        train_y_series = pd.Series(train_y)
+        train_true_series = pd.Series(train_true, dtype="Int64")
+
+        # 训练期背景带
+        if train_x_series.iloc[0] is not None and train_x_series.iloc[-1] is not None:
+            fig.add_vrect(
+                x0=train_x_series.iloc[0],
+                x1=train_x_series.iloc[-1],
+                fillcolor="#e2e8f0",
+                opacity=0.3,
+                line_width=0,
+                layer="below",
+                annotation_text="训练期",
+                annotation_position="top left",
+            )
+
+        # 训练期 GT 异常段
+        if train_true_series.notna().any():
+            from nextaiops_algo.pipeline.profile import anomaly_segments
+            segments = anomaly_segments(train_true_series.fillna(0).astype(int).tolist())
+            for start, end in segments:
+                fig.add_vrect(
+                    x0=train_x_series.iloc[start],
+                    x1=train_x_series.iloc[end],
+                    fillcolor="#64748b",
+                    opacity=0.12,
+                    line_width=0,
+                    layer="below",
+                )
+
+        # 训练期指标线
+        fig.add_trace(
+            go.Scatter(
+                x=train_x_series,
+                y=train_y_series,
+                mode="lines",
+                name=f"{metric}（训练期）",
+                line={"color": "#94a3b8", "width": 1.5},
+                hovertemplate=(
+                    "x=%{x}<br>value=%{y:.4g}<br>phase=训练<extra>训练期</extra>"
+                ),
+            )
+        )
+
+    # ── 检测期渲染 ──
+    detect_x_series = pd.Series(detect_x)
+    detect_y_series = pd.Series(detect_y)
+    detect_pred_series = pd.Series(detect_pred)
+    detect_true_series = pd.Series(detect_true, dtype="Int64")
+    detect_day_series = pd.Series(detect_day)
+
+    # 检测期 GT 异常段
+    if detect_true_series.notna().any():
+        from nextaiops_algo.pipeline.profile import anomaly_segments
+        for _day_label, day_group in detect_day_series.groupby(detect_day_series):
+            day_indices = day_group.index.tolist()
+            day_true = detect_true_series.loc[day_indices]
+            segments = anomaly_segments(day_true.fillna(0).astype(int).tolist())
+            for start, end in segments:
+                fig.add_vrect(
+                    x0=detect_x_series.iloc[day_indices[start]],
+                    x1=detect_x_series.iloc[day_indices[end]],
+                    fillcolor="#64748b",
+                    opacity=0.12,
+                    line_width=0,
+                    layer="below",
+                )
+
+    # 检测期指标线
+    customdata = pd.DataFrame({
+        "score": pd.Series(detect_score, dtype="float64"),
+        "true": detect_true_series,
+        "pred": detect_pred_series,
+        "day": detect_day_series,
+    })
+    fig.add_trace(
+        go.Scatter(
+            x=detect_x_series,
+            y=detect_y_series,
+            mode="lines",
+            name=metric,
+            line={"color": "#2563eb", "width": 1.5},
+            customdata=customdata,
+            hovertemplate=(
+                "x=%{x}<br>"
+                "value=%{y:.4g}<br>"
+                "score=%{customdata[0]:.4g}<br>"
+                "true=%{customdata[1]}<br>"
+                "pred=%{customdata[2]}<br>"
+                "day=%{customdata[3]}"
+                f"<extra>{metric}</extra>"
+            ),
+        )
+    )
+
+    # 阈值线
+    upper_series = pd.Series(detect_upper, dtype="float64")
+    lower_series = pd.Series(detect_lower, dtype="float64")
+    if upper_series.notna().any():
+        fig.add_trace(
+            go.Scatter(
+                x=detect_x_series,
+                y=upper_series,
+                mode="lines",
+                name="上阈值",
+                line={"color": "#059669", "dash": "dash", "width": 1},
+                hovertemplate="x=%{x}<br>upper=%{y:.4g}<extra>上阈值</extra>",
+            )
+        )
+    if lower_series.notna().any():
+        fig.add_trace(
+            go.Scatter(
+                x=detect_x_series,
+                y=lower_series,
+                mode="lines",
+                name="下阈值",
+                line={"color": "#059669", "dash": "dash", "width": 1},
+                hovertemplate="x=%{x}<br>lower=%{y:.4g}<extra>下阈值</extra>",
+            )
+        )
+
+    # TP/FP/FN 标记
+    if detect_true_series.notna().any():
+        for label, mask, style in [
+            ("TP", (detect_true_series == 1) & (detect_pred_series == 1), {"color": "#16a34a", "symbol": "circle", "size": 9}),
+            ("FP", (detect_true_series == 0) & (detect_pred_series == 1), {"color": "#f97316", "symbol": "x", "size": 10}),
+            ("FN", (detect_true_series == 1) & (detect_pred_series == 0), {"color": "#dc2626", "symbol": "diamond", "size": 9}),
+        ]:
+            if mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=detect_x_series[mask],
+                        y=detect_y_series[mask],
+                        mode="markers",
+                        name=label,
+                        marker=style,
+                        hovertemplate=(
+                            "x=%{x}<br>value=%{y:.4g}<extra>" + label + "</extra>"
+                        ),
+                    )
+                )
+    else:
+        pred_mask = detect_pred_series == 1
+        if pred_mask.any():
+            fig.add_trace(
+                go.Scatter(
+                    x=detect_x_series[pred_mask],
+                    y=detect_y_series[pred_mask],
+                    mode="markers",
+                    name="检出异常",
+                    marker={"color": "#dc2626", "size": 8, "symbol": "circle"},
+                    hovertemplate="x=%{x}<br>value=%{y:.4g}<extra>检出</extra>",
+                )
+            )
+
+    algo_name = valid[0].algorithm_name
+    title_parts = [f"时序图：{algo_name}（{len(valid)} 个 cycle）"]
+    if has_train:
+        title_parts.append(f"训练 {len(train_x)} 行")
+    fig.update_layout(
+        title=" · ".join(title_parts),
+        xaxis_title="Timestamp" if has_timestamps else "Index",
+        yaxis_title=metric,
+        template="plotly_white",
+        height=500,
+        hovermode="x unified",
+        showlegend=True,
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
+        margin={"l": 48, "r": 24, "t": 64, "b": 48},
+    )
+    fig.update_xaxes(
+        showspikes=True,
+        spikemode="across",
+        spikesnap="cursor",
+        spikecolor="#64748b",
+        spikethickness=1,
+    )
+
+    st.plotly_chart(fig, width="stretch", config=_plotly_config())
+
+
 def _render_rolling_result(
     result: RollingExperimentResult,
     partitions: list[DayPartition],
+    input_table: Table | None = None,
 ) -> None:
     """Render rolling leaderboard, active timeline, ledger, and exclusions."""
     summary_cols = st.columns(4)
@@ -1421,8 +2103,8 @@ def _render_rolling_result(
     summary_cols[2].metric("ledger rows", len(result.ledger))
     summary_cols[3].metric("blocked", len(result.blocked_intervals))
 
-    leaderboard_tab, timeline_tab, ledger_tab, exclusion_tab = st.tabs(
-        ["算法排行", "Active Timeline", "Prediction Ledger", "排除项汇总"]
+    leaderboard_tab, timeline_tab, detect_tab, exclusion_tab = st.tabs(
+        ["算法排行", "Active Timeline", "检测时序图", "排除项汇总"]
     )
     with leaderboard_tab:
         leaderboard_df = _build_leaderboard_dataframe(result)
@@ -1444,16 +2126,129 @@ def _render_rolling_result(
                 key=f"rolling_timeline_{result.experiment.experiment_id}",
             )
 
-    with ledger_tab:
-        ledger_df = _build_ledger_dataframe(result)
-        if ledger_df.empty:
-            st.warning("暂无 prediction ledger。")
+    with detect_tab:
+        # Algorithm selector: show all cycles for the selected algorithm concatenated
+        completed_cycles = [
+            c for c in result.cycles
+            if c.status == "completed" and c.detect_output is not None
+        ]
+        if not completed_cycles:
+            st.warning("暂无可可视化的检测 cycle。")
         else:
-            st.caption("仅展示前 200 行。")
-            _render_filterable_dataframe(
-                ledger_df,
-                key=f"rolling_ledger_{result.experiment.experiment_id}",
+            # Group cycles by algorithm
+            algo_cycles: dict[str, list[RollingDayCycle]] = {}
+            for c in completed_cycles:
+                algo_cycles.setdefault(c.algorithm_name, []).append(c)
+            algo_names = sorted(algo_cycles.keys())
+
+            selected_algo = st.selectbox(
+                "选择算法",
+                options=algo_names,
+                key="rolling_detect_algo_selector",
             )
+            if selected_algo is not None:
+                selected_cycles = algo_cycles[selected_algo]
+
+                # Aggregate metrics across all cycles for this algorithm
+                all_metrics = [c.metrics for c in selected_cycles if c.metrics]
+                if all_metrics:
+                    mc = st.columns(7)
+                    mc[0].metric("Cycles", len(selected_cycles))
+                    for i, key in enumerate(["precision", "recall", "f1", "pa_f1", "seg_recall", "seg_precision"]):
+                        values = [m[key] for m in all_metrics if key in m]
+                        avg = sum(values) / len(values) if values else 0.0
+                        mc[i + 1].metric(
+                            {
+                                "precision": "Precision",
+                                "recall": "Recall",
+                                "f1": "F1",
+                                "pa_f1": "PA-F1",
+                                "seg_recall": "段召回率",
+                                "seg_precision": "段精确率",
+                            }[key],
+                            f"{avg:.3f}",
+                            help={
+                                "precision": "检出的异常中有多少是真的（点级）",
+                                "recall": "真实异常中有多少被检出（点级）",
+                                "f1": "Precision 与 Recall 的调和平均（点级）",
+                                "pa_f1": "按异常段调整后的 F1，命中段内任意一点即视为全段命中",
+                                "seg_recall": f"真实异常段中被检测出的比例（IoU≥{result.experiment.policy.segment_iou_threshold}）",
+                                "seg_precision": f"检测出的异常段中有多少是正确的（IoU≥{result.experiment.policy.segment_iou_threshold}）",
+                            }[key],
+                        )
+
+                    # 段级统计
+                    from nextaiops_algo.pipeline.profile import anomaly_segments
+                    total_true_segs = 0
+                    total_pred_segs = 0
+                    for c in selected_cycles:
+                        if c.detect_output is not None:
+                            out_df = c.detect_output.df
+                            if "predicted_label" in out_df.columns:
+                                pred_labels = out_df["predicted_label"].fillna(0).astype(int).tolist()
+                                total_pred_segs += len(anomaly_segments(pred_labels))
+                    # 从 ledger 统计真实段数
+                    algo_ledger_for_segs = [row for row in result.ledger if row.algorithm_name == selected_algo]
+                    # Group by cutoff_day to get per-cycle true segments
+                    from collections import defaultdict
+                    ledger_by_day_segs: dict[str, list[int | None]] = defaultdict(list)
+                    for row in algo_ledger_for_segs:
+                        ledger_by_day_segs[str(row.cutoff_day)].append(row.label)
+                    for day_labels in ledger_by_day_segs.values():
+                        true_labels = [int(v) if v is not None else 0 for v in day_labels]
+                        total_true_segs += len(anomaly_segments(true_labels))
+
+                    iou_thresh = result.experiment.policy.segment_iou_threshold
+                    seg_info_cols = st.columns(3)
+                    seg_info_cols[0].metric(
+                        "真实异常段数",
+                        total_true_segs,
+                        help="所有检测周期内的真实异常连续段总数",
+                    )
+                    seg_info_cols[1].metric(
+                        "检测出异常段数",
+                        total_pred_segs,
+                        help="算法检出的异常连续段总数",
+                    )
+                    seg_recall_avg = (
+                        sum(m.get("seg_recall", 0) for m in all_metrics) / len(all_metrics)
+                        if all_metrics
+                        else 0.0
+                    )
+                    seg_precision_avg = (
+                        sum(m.get("seg_precision", 0) for m in all_metrics) / len(all_metrics)
+                        if all_metrics
+                        else 0.0
+                    )
+                    seg_info_cols[2].metric(
+                        f"段匹配阈值 (IoU≥{iou_thresh:.0%})",
+                        f"{seg_recall_avg:.0%} / {seg_precision_avg:.0%}",
+                        help=f"段召回率（真实段被检出比例）/ 段精确率（检测段正确比例），IoU≥{iou_thresh} 视为有效匹配",
+                    )
+
+                # Filter ledger rows for this algorithm
+                algo_ledger = [row for row in result.ledger if row.algorithm_name == selected_algo]
+                _render_rolling_detect_figure(
+                    selected_cycles,
+                    algo_ledger,
+                    source_table=input_table,
+                    detect_start_day=result.experiment.policy.detect_start_day.isoformat()
+                    if result.experiment.policy.detect_start_day is not None
+                    else None,
+                )
+
+        # Ledger as expandable raw data
+        ledger_df = _build_ledger_dataframe(result)
+        if not ledger_df.empty:
+            with st.expander("Prediction Ledger（原始推理记录，用于审计与调试）"):
+                st.caption(
+                    "Prediction Ledger 记录每条推理的 timestamp、算法、active_model_id、"
+                    "predicted_label、score 与 ground truth label。仅展示前 200 行。"
+                )
+                _render_filterable_dataframe(
+                    ledger_df,
+                    key=f"rolling_ledger_{result.experiment.experiment_id}",
+                )
 
     with exclusion_tab:
         exclusion_df = _build_exclusion_dataframe(partitions, result)
@@ -1469,11 +2264,36 @@ def _render_rolling_result(
 
 
 def _render_rolling_history() -> None:
-    """Render persisted rolling experiment history."""
+    """Render persisted rolling experiment history with pagination."""
     store = SqliteTrackingStore()
-    experiments = store.list_rolling_experiments(limit=10)
-    if not experiments:
+    total_count = store.count_rolling_experiments()
+    if total_count == 0:
         st.info("暂无历史滚动实验记录。")
+        return
+
+    page_size = 10
+    total_pages = max(1, (total_count + page_size - 1) // page_size)
+    current_page = int(st.session_state.get("rolling_history_page", 1))
+    if current_page > total_pages:
+        current_page = total_pages
+
+    st.subheader(f"历史滚动实验（共 {total_count} 条）")
+    page_cols = st.columns([1, 3, 1])
+    with page_cols[0]:
+        if st.button("◀ 上一页", disabled=current_page <= 1, key="rolling_history_prev"):
+            st.session_state["rolling_history_page"] = current_page - 1
+            st.rerun()
+    with page_cols[1]:
+        st.caption(f"第 {current_page} / {total_pages} 页")
+    with page_cols[2]:
+        if st.button("下一页 ▶", disabled=current_page >= total_pages, key="rolling_history_next"):
+            st.session_state["rolling_history_page"] = current_page + 1
+            st.rerun()
+
+    offset = (current_page - 1) * page_size
+    experiments = store.list_rolling_experiments(limit=page_size, offset=offset)
+    if not experiments:
+        st.info("当前页无记录。")
         return
 
     history_rows = []
@@ -1489,8 +2309,10 @@ def _render_rolling_history() -> None:
                 "ledger rows": store.count_rolling_predictions(experiment_id),
             }
         )
-    st.subheader("历史滚动实验")
-    _render_filterable_dataframe(pd.DataFrame(history_rows), key="rolling_history")
+    _render_filterable_dataframe(
+        pd.DataFrame(history_rows),
+        key=f"rolling_history_p{current_page}",
+    )
 
 
 def _render_history() -> None:
