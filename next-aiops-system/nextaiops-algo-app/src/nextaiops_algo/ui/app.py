@@ -1691,24 +1691,24 @@ def _render_rolling_bundle_overview(bundle_result: RollingBundleResult) -> None:
             key=f"bundle_leaderboard_{bundle_result.bundle_id}",
         )
 
-    # Algorithm × File heatmap
-    st.subheader("算法 × 文件 PA-F1 热力图")
+    # Algorithm × File heatmap (files as rows, algorithms as columns)
+    st.subheader("文件 × 算法 PA-F1 热力图")
     algo_names = [algo.name for algo in bundle_result.algorithms]
     heatmap_data = []
-    for algo_name in algo_names:
-        row_data: dict[str, Any] = {"算法": algo_name}
-        for cell in bundle_result.cells:
+    for cell in bundle_result.cells:
+        row_data: dict[str, Any] = {"文件": cell.file_name}
+        for algo_name in algo_names:
             if cell.result is not None:
                 matching = [r for r in cell.result.leaderboard if r.algorithm_name == algo_name]
                 if matching:
-                    row_data[cell.file_name] = matching[0].mean_pa_f1
+                    row_data[algo_name] = matching[0].mean_pa_f1
                 else:
-                    row_data[cell.file_name] = None
+                    row_data[algo_name] = None
             else:
-                row_data[cell.file_name] = None
+                row_data[algo_name] = None
         heatmap_data.append(row_data)
 
-    heatmap_df = pd.DataFrame(heatmap_data).set_index("算法")
+    heatmap_df = pd.DataFrame(heatmap_data).set_index("文件")
     st.dataframe(
         heatmap_df.style.format("{:.3f}", na_rep="-").background_gradient(
             cmap="RdYlGn", axis=None, vmin=0, vmax=1
