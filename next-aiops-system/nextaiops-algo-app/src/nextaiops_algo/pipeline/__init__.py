@@ -22,6 +22,16 @@ from .preprocess import (
     read_to_table,
     split_by_time,
 )
+from .rolling_data import (
+    DayPartition,
+    ExclusionReason,
+    PartitionStatus,
+    SyntheticTimeConfig,
+    build_day_partitions,
+    cumulative_training_window,
+    partition_tables,
+    split_train_validate,
+)
 from .run import run_experiment
 from .run_bundle import BundleRunResult, run_bundle_experiment
 
@@ -32,6 +42,13 @@ __all__ = [
     "DatasetFile",
     "evaluate",
     "load_dataset_bundle",
+    "DayPartition",
+    "ExclusionReason",
+    "PartitionStatus",
+    "SyntheticTimeConfig",
+    "build_day_partitions",
+    "cumulative_training_window",
+    "partition_tables",
     "read_csv_to_table",
     "read_dataset_bundle_from_zip",
     "read_to_table",
@@ -39,5 +56,6 @@ __all__ = [
     "run_batch_bundle",
     "run_bundle_experiment",
     "run_experiment",
+    "split_train_validate",
     "split_by_time",
 ]
