@@ -7,7 +7,13 @@ from typing import Annotated, Literal
 import typer
 
 from nextaiops_algo.algorithms.registry import list_algorithms
-from nextaiops_algo.pipeline import run_batch, run_experiment
+from nextaiops_algo.pipeline import (
+    AlgorithmConfig,
+    ExperimentPolicy,
+    run_batch,
+    run_experiment,
+    run_rolling_experiment,
+)
 from nextaiops_algo.storage.sqlite_tracking import SqliteTrackingStore
 
 app = typer.Typer(
@@ -138,3 +144,78 @@ def list_batches(
         typer.echo(f"    algorithms: {b.algorithm_names}")
         typer.echo(f"    status: {b.status}")
         typer.echo(f"    created: {b.created_at}")
+
+
+@app.command()
+def rolling(
+    data: Annotated[Path, typer.Option("--data", help="Path to input data")] = ...,  # type: ignore[assignment]
+    date_column: Annotated[str | None, typer.Option("--date-column", help="Timestamp/date column override")] = None,
+    cadence: Annotated[str, typer.Option("--cadence", help="Rolling cadence; M2 supports only 1d")] = "1d",
+    algos: Annotated[str, typer.Option("--algos", help="Comma-separated algorithm names")] = "three_sigma,iqr",
+    validate_ratio: Annotated[float, typer.Option("--validate-ratio", help="Train/validate split ratio")] = 0.7,
+    auto_active: Annotated[str, typer.Option("--auto-active", help="Auto-active strategy; M2 supports latest")] = "latest",
+) -> None:
+    """Run a rolling experiment.
+
+    Example:
+        python -m nextaiops_algo rolling --data multi_day.csv --algos three_sigma,iqr
+    """
+    if cadence != "1d":
+        typer.echo("Error: M2 rolling engine supports only --cadence 1d", err=True)
+        raise typer.Exit(1)
+    if auto_active != "latest":
+        typer.echo("Error: M2 rolling engine supports only --auto-active latest", err=True)
+        raise typer.Exit(1)
+
+    algorithm_configs = [
+        AlgorithmConfig(name=name.strip())
+        for name in algos.split(",")
+        if name.strip()
+    ]
+    if not algorithm_configs:
+        typer.echo("Error: --algos must contain at least one algorithm name", err=True)
+        raise typer.Exit(1)
+
+    policy = ExperimentPolicy(
+        cadence="1d",
+        validate_ratio=validate_ratio,
+        auto_active="latest",
+    )
+    result = run_rolling_experiment(
+        dataset_path=data,
+        algorithms=algorithm_configs,
+        date_column=date_column,
+        policy=policy,
+    )
+
+    typer.echo("\nRolling experiment completed:")
+    typer.echo(f"  experiment_id: {result.experiment.experiment_id}")
+    typer.echo(f"  status: {result.experiment.status}")
+    typer.echo(f"  cycles: {len(result.cycles)}")
+    typer.echo(f"  ledger rows: {len(result.ledger)}")
+    typer.echo("  leaderboard:")
+    for row in result.leaderboard:
+        typer.echo(
+            f"    - {row.algorithm_name}: mean_pa_f1={row.mean_pa_f1:.4f}, "
+            f"success_rate={row.success_rate:.2f}"
+        )
+
+
+@app.command()
+def list_rolling(
+    limit: Annotated[int, typer.Option("--limit", help="Maximum number of rolling experiments to display")] = 10,
+) -> None:
+    """List recent rolling experiments."""
+    store = SqliteTrackingStore()
+    experiments = store.list_rolling_experiments(limit=limit)
+
+    if not experiments:
+        typer.echo("No rolling experiments found.")
+        return
+
+    typer.echo(f"Recent rolling experiments (limit={limit}):")
+    for exp in experiments:
+        typer.echo(f"\n  experiment_id: {exp['experiment_id']}")
+        typer.echo(f"    dataset: {exp['dataset_path']}")
+        typer.echo(f"    status: {exp['status']}")
+        typer.echo(f"    created: {exp['created_at']}")

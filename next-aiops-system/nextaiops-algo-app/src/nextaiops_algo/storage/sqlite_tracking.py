@@ -4,6 +4,7 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from nextaiops_algo.core.experiment import BatchRun, BatchStatus, ExperimentRun, RunStatus
 from nextaiops_algo.core.tracking import TrackingStore
@@ -82,6 +83,52 @@ class SqliteTrackingStore(TrackingStore):
                 PRIMARY KEY (batch_id, run_id),
                 FOREIGN KEY (batch_id) REFERENCES batches(batch_id),
                 FOREIGN KEY (run_id) REFERENCES runs(run_id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rolling_experiments (
+                experiment_id TEXT PRIMARY KEY,
+                dataset_path TEXT NOT NULL,
+                date_column TEXT,
+                policy_json TEXT NOT NULL,
+                algorithms_json TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rolling_day_cycles (
+                experiment_id TEXT NOT NULL,
+                cutoff_day TEXT NOT NULL,
+                algorithm_name TEXT NOT NULL,
+                params_json TEXT NOT NULL,
+                train_rows INTEGER NOT NULL,
+                validate_rows INTEGER NOT NULL,
+                active_interval_start TEXT,
+                active_interval_end TEXT,
+                status TEXT NOT NULL,
+                exclusion_reason TEXT,
+                error_message TEXT,
+                active_model_id TEXT,
+                metrics_json TEXT NOT NULL,
+                FOREIGN KEY (experiment_id) REFERENCES rolling_experiments(experiment_id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rolling_predictions (
+                experiment_id TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                algorithm_name TEXT NOT NULL,
+                params_json TEXT NOT NULL,
+                cutoff_day TEXT NOT NULL,
+                active_model_id TEXT NOT NULL,
+                predicted_label INTEGER NOT NULL,
+                score REAL,
+                label INTEGER,
+                FOREIGN KEY (experiment_id) REFERENCES rolling_experiments(experiment_id)
             )
         """)
 
@@ -358,3 +405,142 @@ class SqliteTrackingStore(TrackingStore):
                 batches.append(batch)
 
         return batches
+
+    # --- Rolling experiment tracking methods --- #
+
+    def log_rolling_experiment(self, result: Any) -> None:
+        """Log a rolling experiment result and its detail rows.
+
+        Args:
+            result: RollingExperimentResult-like object from pipeline. The store
+                intentionally keeps this as a duck-typed object to avoid a
+                storage -> pipeline import cycle.
+        """
+        experiment = result.experiment
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO rolling_experiments (
+                experiment_id, dataset_path, date_column, policy_json,
+                algorithms_json, status, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            experiment.experiment_id,
+            experiment.dataset_path,
+            experiment.date_column,
+            json.dumps(_jsonable(experiment.policy)),
+            json.dumps(_jsonable(experiment.algorithms)),
+            experiment.status,
+            experiment.created_at.isoformat(),
+        ))
+
+        for cycle in result.cycles:
+            cursor.execute("""
+                INSERT INTO rolling_day_cycles (
+                    experiment_id, cutoff_day, algorithm_name, params_json,
+                    train_rows, validate_rows, active_interval_start,
+                    active_interval_end, status, exclusion_reason, error_message,
+                    active_model_id, metrics_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                experiment.experiment_id,
+                cycle.cutoff_day.isoformat(),
+                cycle.algorithm_name,
+                json.dumps(_jsonable(cycle.params)),
+                cycle.train_rows,
+                cycle.validate_rows,
+                _optional_isoformat(cycle.active_interval_start),
+                _optional_isoformat(cycle.active_interval_end),
+                cycle.status,
+                cycle.exclusion_reason,
+                cycle.error_message,
+                cycle.active_model_id,
+                json.dumps(_jsonable(cycle.metrics)),
+            ))
+
+        for row in result.ledger:
+            cursor.execute("""
+                INSERT INTO rolling_predictions (
+                    experiment_id, timestamp, algorithm_name, params_json,
+                    cutoff_day, active_model_id, predicted_label, score, label
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                experiment.experiment_id,
+                str(row.timestamp),
+                row.algorithm_name,
+                json.dumps(_jsonable(row.params)),
+                row.cutoff_day.isoformat(),
+                row.active_model_id,
+                row.predicted_label,
+                row.score,
+                row.label,
+            ))
+
+        conn.commit()
+        conn.close()
+
+    def list_rolling_experiments(self, limit: int | None = None) -> list[dict[str, object]]:
+        """List rolling experiment summaries ordered by creation time."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        if limit is None:
+            cursor.execute("""
+                SELECT experiment_id, dataset_path, date_column, status, created_at
+                FROM rolling_experiments
+                ORDER BY created_at DESC
+            """)
+        else:
+            cursor.execute("""
+                SELECT experiment_id, dataset_path, date_column, status, created_at
+                FROM rolling_experiments
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (limit,))
+
+        rows = cursor.fetchall()
+        conn.close()
+        return [
+            {
+                "experiment_id": row[0],
+                "dataset_path": row[1],
+                "date_column": row[2],
+                "status": row[3],
+                "created_at": row[4],
+            }
+            for row in rows
+        ]
+
+    def count_rolling_predictions(self, experiment_id: str) -> int:
+        """Count prediction ledger rows for one rolling experiment."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM rolling_predictions WHERE experiment_id = ?",
+            (experiment_id,),
+        )
+        count = int(cursor.fetchone()[0])
+        conn.close()
+        return count
+
+
+def _jsonable(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    if isinstance(value, list):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    return value
+
+
+def _optional_isoformat(value: Any) -> str | None:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return str(value.isoformat())
+    return str(value)
