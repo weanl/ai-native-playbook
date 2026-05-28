@@ -22,6 +22,16 @@ from .preprocess import (
     read_to_table,
     split_by_time,
 )
+from .rolling import (
+    AlgorithmConfig,
+    ExperimentPolicy,
+    PredictionLedgerRow,
+    RollingDayCycle,
+    RollingExperiment,
+    RollingExperimentResult,
+    RollingLeaderboardRow,
+    run_rolling_experiment,
+)
 from .rolling_data import (
     DayPartition,
     ExclusionReason,
@@ -42,9 +52,16 @@ __all__ = [
     "DatasetFile",
     "evaluate",
     "load_dataset_bundle",
+    "AlgorithmConfig",
     "DayPartition",
+    "ExperimentPolicy",
     "ExclusionReason",
     "PartitionStatus",
+    "PredictionLedgerRow",
+    "RollingDayCycle",
+    "RollingExperiment",
+    "RollingExperimentResult",
+    "RollingLeaderboardRow",
     "SyntheticTimeConfig",
     "build_day_partitions",
     "cumulative_training_window",
@@ -56,6 +73,7 @@ __all__ = [
     "run_batch_bundle",
     "run_bundle_experiment",
     "run_experiment",
+    "run_rolling_experiment",
     "split_train_validate",
     "split_by_time",
 ]
