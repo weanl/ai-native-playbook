@@ -24,6 +24,17 @@ from nextaiops_algo.pipeline.preprocess import (
     read_to_table,
 )
 from nextaiops_algo.pipeline.profile import TableProfile, profile_table
+from nextaiops_algo.pipeline.rolling import (
+    AlgorithmConfig,
+    ExperimentPolicy,
+    RollingExperimentResult,
+    run_rolling_experiment,
+)
+from nextaiops_algo.pipeline.rolling_data import (
+    DayPartition,
+    PartitionStatus,
+    build_day_partitions,
+)
 from nextaiops_algo.pipeline.run import run_experiment
 from nextaiops_algo.pipeline.run_bundle import BundleRunResult, run_bundle_experiment
 from nextaiops_algo.storage.sqlite_tracking import SqliteTrackingStore
@@ -976,6 +987,512 @@ def _render_batch_bundle_result(
         )
 
 
+def _build_partition_dataframe(partitions: list[DayPartition]) -> pd.DataFrame:
+    """Build a display dataframe for rolling day partition quality."""
+    return pd.DataFrame(
+        [
+            {
+                "日期": partition.date.isoformat(),
+                "行数": partition.row_count,
+                "有标签": "是" if partition.has_label else "否",
+                "标签覆盖率": (
+                    "" if partition.label_coverage is None else f"{partition.label_coverage:.2%}"
+                ),
+                "状态": partition.status.value,
+                "排除原因": (
+                    "" if partition.exclusion_reason is None else partition.exclusion_reason.value
+                ),
+            }
+            for partition in partitions
+        ]
+    )
+
+
+def _rolling_valid_partitions(partitions: list[DayPartition]) -> list[DayPartition]:
+    """Return partitions that can participate in a rolling experiment."""
+    return [partition for partition in partitions if partition.status == PartitionStatus.VALID]
+
+
+def _build_cycle_dataframe(result: RollingExperimentResult) -> pd.DataFrame:
+    """Build a display dataframe for rolling day cycles."""
+    return pd.DataFrame(
+        [
+            {
+                "cutoff_day": cycle.cutoff_day.isoformat(),
+                "算法": cycle.algorithm_name,
+                "train_rows": cycle.train_rows,
+                "validate_rows": cycle.validate_rows,
+                "active_start": _optional_display(cycle.active_interval_start),
+                "active_end": _optional_display(cycle.active_interval_end),
+                "状态": cycle.status,
+                "active_model_id": cycle.active_model_id or "",
+                "PA-F1": _round_optional(cycle.metrics.get("pa_f1")),
+                "错误": cycle.error_message or cycle.exclusion_reason or "",
+            }
+            for cycle in result.cycles
+        ]
+    )
+
+
+def _build_leaderboard_dataframe(result: RollingExperimentResult) -> pd.DataFrame:
+    """Build a display dataframe for rolling leaderboard rows."""
+    return pd.DataFrame(
+        [
+            {
+                "算法": row.algorithm_name,
+                "参数": json.dumps(row.params, ensure_ascii=False),
+                "Mean PA-F1": round(row.mean_pa_f1, 4),
+                "Median PA-F1": round(row.median_pa_f1, 4),
+                "success_rate": f"{row.success_rate:.2%}",
+                "完成 cycles": row.cycles_completed,
+                "失败 cycles": row.cycles_failed,
+            }
+            for row in result.leaderboard
+        ]
+    )
+
+
+def _build_ledger_dataframe(result: RollingExperimentResult, limit: int = 200) -> pd.DataFrame:
+    """Build a preview dataframe for rolling prediction ledger rows."""
+    return pd.DataFrame(
+        [
+            {
+                "timestamp": str(row.timestamp),
+                "算法": row.algorithm_name,
+                "cutoff_day": row.cutoff_day.isoformat(),
+                "active_model_id": row.active_model_id,
+                "predicted_label": row.predicted_label,
+                "score": _round_optional(row.score),
+                "label": row.label,
+            }
+            for row in result.ledger[:limit]
+        ]
+    )
+
+
+def _build_active_timeline_dataframe(result: RollingExperimentResult) -> pd.DataFrame:
+    """Build a display dataframe for active model intervals."""
+    return pd.DataFrame(
+        [
+            {
+                "cutoff_day": cycle.cutoff_day.isoformat(),
+                "算法": cycle.algorithm_name,
+                "active_start": _optional_display(cycle.active_interval_start),
+                "active_end": _optional_display(cycle.active_interval_end),
+                "active_model_id": cycle.active_model_id or "",
+                "状态": cycle.status,
+            }
+            for cycle in result.cycles
+            if cycle.active_model_id is not None or cycle.status == "blocked"
+        ]
+    )
+
+
+def _build_exclusion_dataframe(
+    partitions: list[DayPartition],
+    result: RollingExperimentResult | None,
+) -> pd.DataFrame:
+    """Build a dataframe for invalid partitions, blocked intervals, and failures."""
+    rows: list[dict[str, object]] = []
+    for partition in partitions:
+        if partition.status != PartitionStatus.VALID:
+            rows.append(
+                {
+                    "类型": "invalid_partition",
+                    "日期/cutoff": partition.date.isoformat(),
+                    "算法": "",
+                    "原因": (
+                        ""
+                        if partition.exclusion_reason is None
+                        else partition.exclusion_reason.value
+                    ),
+                }
+            )
+    if result is not None:
+        for cycle in result.cycles:
+            if cycle.status != "completed":
+                rows.append(
+                    {
+                        "类型": cycle.status,
+                        "日期/cutoff": cycle.cutoff_day.isoformat(),
+                        "算法": cycle.algorithm_name,
+                        "原因": cycle.error_message or cycle.exclusion_reason or "",
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def _rolling_policy_signature(
+    *,
+    data_source: str,
+    date_column: str | None,
+    selected_algorithms: list[str],
+    algorithm_params: dict[str, dict[str, object]],
+    policy: ExperimentPolicy,
+) -> str:
+    """Return a stable signature for the frozen rolling policy."""
+    payload = {
+        "data_source": data_source,
+        "date_column": date_column,
+        "selected_algorithms": selected_algorithms,
+        "algorithm_params": algorithm_params,
+        "policy": policy.model_dump(mode="json"),
+    }
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+def _round_optional(value: float | None) -> float | None:
+    """Round a numeric value for compact display."""
+    return None if value is None else round(float(value), 4)
+
+
+def _optional_display(value: object) -> str:
+    """Format optional datetime-like values for tables."""
+    if value is None:
+        return ""
+    if hasattr(value, "isoformat"):
+        return str(value.isoformat())
+    return str(value)
+
+
+def _render_rolling_workbench(
+    upload_ok: bool,
+    input_table: Table | None,
+    data_source: str,
+    input_bundle: DatasetBundle | None,
+) -> None:
+    """Render the rolling experiment MVP workbench."""
+    st.header("滚动实验工作台")
+    access_tab, preview_tab, config_tab, task_tab, result_tab = st.tabs(
+        ["数据接入", "数据预览", "实验配置", "实验任务管理", "实验结果查看"]
+    )
+
+    threshold_key = "rolling_label_coverage_threshold"
+    validate_key = "rolling_validate_ratio"
+
+    with access_tab:
+        st.subheader("数据接入")
+        if not upload_ok or input_table is None:
+            st.info("请先在侧边栏选择或上传数据。")
+            return
+
+        st.caption(f"当前数据源：{data_source}")
+        if input_bundle is not None:
+            st.warning(
+                "当前输入是 DatasetBundle。M2-027 MVP 可展示首个文件的分区诊断，"
+                "但滚动实验执行仍需单文件路径或内置数据集名。"
+            )
+
+        date_options = ["自动识别"] + list(input_table.df.columns)
+        selected_date = st.selectbox(
+            "日期/时间列",
+            options=date_options,
+            help="默认使用 schema 中的 TIMESTAMP 角色；如需覆盖，可选择具体列。",
+            key="rolling_date_column",
+        )
+        date_column = None if selected_date == "自动识别" else str(selected_date)
+
+        label_threshold = st.number_input(
+            "label coverage 门槛",
+            min_value=0.0,
+            max_value=1.0,
+            value=float(st.session_state.get(threshold_key, 0.0)),
+            step=0.05,
+            key=threshold_key,
+        )
+
+        try:
+            partitions = build_day_partitions(
+                input_table,
+                date_column=date_column,
+                threshold=label_threshold,
+            )
+        except ValueError as e:
+            st.error(f"无法构建日分区：{e}")
+            st.session_state["rolling_partitions"] = []
+            return
+
+        st.session_state["rolling_partitions"] = partitions
+        valid_partitions = _rolling_valid_partitions(partitions)
+        summary_cols = st.columns(4)
+        summary_cols[0].metric("总分区", len(partitions))
+        summary_cols[1].metric("有效分区", len(valid_partitions))
+        summary_cols[2].metric("无效分区", len(partitions) - len(valid_partitions))
+        summary_cols[3].metric("总行数", sum(partition.row_count for partition in partitions))
+
+        _render_filterable_dataframe(
+            _build_partition_dataframe(partitions),
+            key="rolling_partitions",
+        )
+        if len(valid_partitions) < 2:
+            st.warning("滚动实验至少需要 2 个有效日分区：前一日训练，后一日 active 推理。")
+
+    with preview_tab:
+        st.subheader("数据预览")
+        if not upload_ok or input_table is None:
+            st.info("请先在侧边栏选择或上传数据。")
+        else:
+            _render_data_preview(input_table)
+            partitions = cast(list[DayPartition], st.session_state.get("rolling_partitions", []))
+            if partitions:
+                st.subheader("日分区质量")
+                _render_filterable_dataframe(
+                    _build_partition_dataframe(partitions),
+                    key="rolling_preview_partitions",
+                )
+
+    with config_tab:
+        st.subheader("实验配置")
+        if not upload_ok or input_table is None:
+            st.info("请先在侧边栏选择或上传数据。")
+            return
+
+        algo_names = list_algorithms()
+        default_algos = algo_names[: min(2, len(algo_names))]
+        selected_algorithms = st.multiselect(
+            "选择算法",
+            options=algo_names,
+            default=default_algos,
+            key="rolling_algorithms",
+        )
+        if not selected_algorithms:
+            st.warning("请至少选择一个算法。")
+
+        algorithm_params: dict[str, dict[str, object]] = {}
+        with st.expander("算法参数 JSON（可选）"):
+            for algorithm_name in selected_algorithms:
+                params_text = st.text_area(
+                    f"{algorithm_name} 参数",
+                    value="{}",
+                    key=f"rolling_params_{algorithm_name}",
+                )
+                try:
+                    params = json.loads(params_text)
+                except json.JSONDecodeError as e:
+                    st.error(f"{algorithm_name} 参数 JSON 格式错误：{e}")
+                    return
+                if not isinstance(params, dict):
+                    st.error(f"{algorithm_name} 参数 JSON 必须是对象。")
+                    return
+                algorithm_params[algorithm_name] = cast(dict[str, object], params)
+
+        validate_ratio = st.number_input(
+            "validate_ratio",
+            min_value=0.05,
+            max_value=0.95,
+            value=float(st.session_state.get(validate_key, 0.7)),
+            step=0.05,
+            key=validate_key,
+        )
+        policy = ExperimentPolicy(
+            validate_ratio=float(validate_ratio),
+            label_coverage_threshold=float(st.session_state.get(threshold_key, 0.0)),
+        )
+
+        policy_cols = st.columns(3)
+        policy_cols[0].metric("cadence", policy.cadence)
+        policy_cols[1].metric("auto_active", policy.auto_active)
+        policy_cols[2].metric("错误策略", policy.on_algorithm_error)
+
+        date_column = cast(str | None, st.session_state.get("rolling_date_column"))
+        if date_column == "自动识别":
+            date_column = None
+        signature = _rolling_policy_signature(
+            data_source=data_source,
+            date_column=date_column,
+            selected_algorithms=selected_algorithms,
+            algorithm_params=algorithm_params,
+            policy=policy,
+        )
+        frozen_signature = st.session_state.get("rolling_frozen_signature")
+        if frozen_signature == signature:
+            st.success("策略已冻结，可以进入任务管理运行滚动实验。")
+        elif frozen_signature is not None:
+            st.warning("配置已变化，请重新冻结策略。")
+
+        if st.button("冻结策略", type="primary", disabled=not selected_algorithms):
+            st.session_state["rolling_frozen_signature"] = signature
+            st.session_state["rolling_frozen_payload"] = {
+                "data_source": data_source,
+                "date_column": date_column,
+                "algorithms": selected_algorithms,
+                "algorithm_params": algorithm_params,
+                "policy": policy,
+            }
+            st.success("策略已冻结。")
+
+    with task_tab:
+        st.subheader("实验任务管理")
+        partitions = cast(list[DayPartition], st.session_state.get("rolling_partitions", []))
+        valid_partitions = _rolling_valid_partitions(partitions)
+        frozen_payload = cast(
+            dict[str, object] | None,
+            st.session_state.get("rolling_frozen_payload"),
+        )
+        run_disabled = (
+            input_bundle is not None
+            or frozen_payload is None
+            or len(valid_partitions) < 2
+            or not upload_ok
+        )
+        if input_bundle is not None:
+            st.info("DatasetBundle 暂不支持直接执行滚动实验，请选择单文件或内置数据集。")
+        if frozen_payload is None:
+            st.info("请先在实验配置 tab 冻结策略。")
+
+        if st.button("运行滚动实验", type="primary", disabled=run_disabled) and frozen_payload is not None:
+            frozen_params = cast(
+                dict[str, dict[str, object]],
+                frozen_payload["algorithm_params"],
+            )
+            frozen_algorithms = cast(list[str], frozen_payload["algorithms"])
+            algorithms = [
+                AlgorithmConfig(
+                    name=algorithm_name,
+                    params=frozen_params[algorithm_name],
+                )
+                for algorithm_name in frozen_algorithms
+            ]
+            with st.spinner("滚动实验运行中..."):
+                try:
+                    run_result = run_rolling_experiment(
+                        cast(str, frozen_payload["data_source"]),
+                        algorithms=algorithms,
+                        date_column=cast(str | None, frozen_payload["date_column"]),
+                        policy=cast(ExperimentPolicy, frozen_payload["policy"]),
+                    )
+                    st.session_state["last_rolling_result"] = run_result
+                    st.success(
+                        f"滚动实验完成：experiment_id={run_result.experiment.experiment_id}，"
+                        f"状态={run_result.experiment.status}"
+                    )
+                except Exception as e:
+                    st.error(f"滚动实验失败：{e}")
+
+        task_result = cast(
+            RollingExperimentResult | None,
+            st.session_state.get("last_rolling_result"),
+        )
+        if task_result is not None:
+            _render_rolling_task_summary(task_result)
+
+    with result_tab:
+        st.subheader("实验结果查看")
+        display_result = cast(
+            RollingExperimentResult | None,
+            st.session_state.get("last_rolling_result"),
+        )
+        partitions = cast(list[DayPartition], st.session_state.get("rolling_partitions", []))
+        if display_result is None:
+            st.info("运行滚动实验后将在这里展示排行、active timeline 和 prediction ledger。")
+            _render_rolling_history()
+        else:
+            _render_rolling_result(display_result, partitions)
+
+
+def _render_rolling_task_summary(result: RollingExperimentResult) -> None:
+    """Render rolling experiment task status and cycle details."""
+    summary_cols = st.columns(4)
+    summary_cols[0].metric("experiment_id", result.experiment.experiment_id)
+    summary_cols[1].metric("状态", result.experiment.status)
+    summary_cols[2].metric("cycles", len(result.cycles))
+    summary_cols[3].metric("ledger rows", len(result.ledger))
+
+    cycle_df = _build_cycle_dataframe(result)
+    if not cycle_df.empty:
+        _render_filterable_dataframe(cycle_df, key=f"rolling_cycles_{result.experiment.experiment_id}")
+
+    failed = cycle_df[cycle_df["状态"] != "completed"] if not cycle_df.empty else pd.DataFrame()
+    if not failed.empty:
+        st.warning("存在 blocked 或 partial_failed cycle，请在结果页查看排除项汇总。")
+
+
+def _render_rolling_result(
+    result: RollingExperimentResult,
+    partitions: list[DayPartition],
+) -> None:
+    """Render rolling leaderboard, active timeline, ledger, and exclusions."""
+    summary_cols = st.columns(4)
+    summary_cols[0].metric("cutoff cycles", len(result.cycles))
+    summary_cols[1].metric(
+        "active models",
+        sum(1 for cycle in result.cycles if cycle.active_model_id is not None),
+    )
+    summary_cols[2].metric("ledger rows", len(result.ledger))
+    summary_cols[3].metric("blocked", len(result.blocked_intervals))
+
+    leaderboard_tab, timeline_tab, ledger_tab, exclusion_tab = st.tabs(
+        ["算法排行", "Active Timeline", "Prediction Ledger", "排除项汇总"]
+    )
+    with leaderboard_tab:
+        leaderboard_df = _build_leaderboard_dataframe(result)
+        if leaderboard_df.empty:
+            st.warning("暂无可用排行。")
+        else:
+            _render_filterable_dataframe(
+                leaderboard_df,
+                key=f"rolling_leaderboard_{result.experiment.experiment_id}",
+            )
+
+    with timeline_tab:
+        timeline_df = _build_active_timeline_dataframe(result)
+        if timeline_df.empty:
+            st.warning("暂无 active model timeline。")
+        else:
+            _render_filterable_dataframe(
+                timeline_df,
+                key=f"rolling_timeline_{result.experiment.experiment_id}",
+            )
+
+    with ledger_tab:
+        ledger_df = _build_ledger_dataframe(result)
+        if ledger_df.empty:
+            st.warning("暂无 prediction ledger。")
+        else:
+            st.caption("仅展示前 200 行。")
+            _render_filterable_dataframe(
+                ledger_df,
+                key=f"rolling_ledger_{result.experiment.experiment_id}",
+            )
+
+    with exclusion_tab:
+        exclusion_df = _build_exclusion_dataframe(partitions, result)
+        if exclusion_df.empty:
+            st.success("未发现 invalid partition、blocked interval 或 failed algorithm。")
+        else:
+            _render_filterable_dataframe(
+                exclusion_df,
+                key=f"rolling_exclusions_{result.experiment.experiment_id}",
+            )
+
+    _render_rolling_history()
+
+
+def _render_rolling_history() -> None:
+    """Render persisted rolling experiment history."""
+    store = SqliteTrackingStore()
+    experiments = store.list_rolling_experiments(limit=10)
+    if not experiments:
+        st.info("暂无历史滚动实验记录。")
+        return
+
+    history_rows = []
+    for experiment in experiments:
+        experiment_id = str(experiment["experiment_id"])
+        history_rows.append(
+            {
+                "experiment_id": experiment_id,
+                "数据集": experiment["dataset_path"],
+                "date_column": experiment["date_column"] or "",
+                "状态": experiment["status"],
+                "created_at": experiment["created_at"],
+                "ledger rows": store.count_rolling_predictions(experiment_id),
+            }
+        )
+    st.subheader("历史滚动实验")
+    _render_filterable_dataframe(pd.DataFrame(history_rows), key="rolling_history")
+
+
 def _render_history() -> None:
     """Render history page for single experiment runs."""
     st.header("历史实验记录")
@@ -1014,12 +1531,12 @@ def _render_history() -> None:
 
 
 # ── Sidebar: page selection ─────────────────────────────────
-page = st.sidebar.radio("功能页面", ["单算法实验", "批量实验", "历史记录"])
+page = st.sidebar.radio("功能页面", ["单算法实验", "批量实验", "滚动实验工作台", "历史记录"])
 
 # ── Shared: data source ─────────────────────────────────────
 upload_ok, input_table, data_source_desc, input_bundle = _get_input_table()
 
-if upload_ok and input_table is not None:
+if page != "滚动实验工作台" and upload_ok and input_table is not None:
     preview_table = input_table
     if input_bundle is not None:
         st.info(
@@ -1043,5 +1560,7 @@ if page == "单算法实验":
     _render_single_experiment(upload_ok, input_table, data_source_desc, input_bundle)
 elif page == "批量实验":
     _render_batch_experiment(upload_ok, input_table, data_source_desc, input_bundle)
+elif page == "滚动实验工作台":
+    _render_rolling_workbench(upload_ok, input_table, data_source_desc, input_bundle)
 elif page == "历史记录":
     _render_history()
